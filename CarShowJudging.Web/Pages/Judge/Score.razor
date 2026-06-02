@@ -1,0 +1,128 @@
+@page "/judge/entries/{VehicleId:int}/score"
+@attribute [Authorize(Roles = "Judge,Admin")]
+@inject IVehicleService VehicleService
+@inject IScoreService ScoreService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<ApplicationUser> UserManager
+
+<PageTitle>Score Entry</PageTitle>
+
+@if (_vehicle is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <div>
+            <h2 class="mb-0">Entry #@_vehicle.EntryNumber</h2>
+            <p class="text-muted mb-0">@_vehicle.Year @_vehicle.Make @_vehicle.Model — @_vehicle.OwnerName</p>
+            @foreach (var c in _vehicle.Classes)
+            {
+                <span class="badge bg-secondary me-1">@c.Name</span>
+            }
+        </div>
+        @if (_vehicle.PhotoUrl is not null)
+        {
+            <img src="@_vehicle.PhotoUrl" alt="vehicle photo" style="height:80px;border-radius:8px;object-fit:cover" />
+        }
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger">@_error</div>
+    }
+
+    <div class="card" style="max-width:480px">
+        <div class="card-body">
+            <h5 class="card-title">Score Each Criteria (1–10)</h5>
+            <CriteriaInput Label="Condition" @bind-Value="_dto.Condition" />
+            <CriteriaInput Label="Paint &amp; Body" @bind-Value="_dto.PaintAndBody" />
+            <CriteriaInput Label="Interior" @bind-Value="_dto.Interior" />
+            <CriteriaInput Label="Show Appeal" @bind-Value="_dto.ShowAppeal" />
+            <CriteriaInput Label="Super Coolness Factor" @bind-Value="_dto.SuperCoolnessFactor" />
+
+            <div class="mt-4 d-flex gap-2">
+                <button class="btn btn-primary" @onclick="SubmitAsync" disabled="@_saving">
+                    @(_saving ? "Submitting…" : "Submit Score")
+                </button>
+                <a href="/judge/entries" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+        </div>
+    </div>
+}
+
+<ScoreConfirmationModal @ref="_modal" OnClosed="ReturnToEntries" />
+
+@code {
+    [Parameter] public int VehicleId { get; set; }
+
+    private Vehicle? _vehicle;
+    private ScoreSubmitDto _dto = new();
+    private bool _saving;
+    private string? _error;
+    private ScoreConfirmationModal _modal = default!;
+    private string? _judgeId;
+    private CarShowJudging.Core.Models.Score? _submittedScore;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(auth.User);
+        _judgeId = user?.Id;
+
+        _vehicle = await VehicleService.GetByIdAsync(VehicleId);
+        if (_vehicle is null) { Nav.NavigateTo("/judge/entries"); return; }
+
+        _dto.VehicleId = VehicleId;
+        _dto.JudgeId = _judgeId ?? string.Empty;
+
+        if (_judgeId is not null)
+        {
+            var existing = await ScoreService.GetByVehicleAndJudgeAsync(VehicleId, _judgeId);
+            if (existing is not null)
+            {
+                _dto.Condition = existing.Condition;
+                _dto.PaintAndBody = existing.PaintAndBody;
+                _dto.Interior = existing.Interior;
+                _dto.ShowAppeal = existing.ShowAppeal;
+                _dto.SuperCoolnessFactor = existing.SuperCoolnessFactor;
+            }
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (!ValidateScores()) return;
+        _saving = true;
+        _error = null;
+        try
+        {
+            _submittedScore = await ScoreService.SubmitAsync(_dto);
+            _modal.Show(_submittedScore, _vehicle!);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private bool ValidateScores()
+    {
+        var values = new[] { _dto.Condition, _dto.PaintAndBody, _dto.Interior, _dto.ShowAppeal, _dto.SuperCoolnessFactor };
+        if (values.Any(v => v < 1 || v > 10))
+        {
+            _error = "All scores must be between 1 and 10.";
+            return false;
+        }
+        return true;
+    }
+
+    private void ReturnToEntries() => Nav.NavigateTo("/judge/entries");
+}

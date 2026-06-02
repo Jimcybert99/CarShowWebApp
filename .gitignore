@@ -1,0 +1,23 @@
+## .NET / Visual Studio
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.rsuser
+
+## Rider
+.idea/
+
+## Publish output
+publish/
+out/
+
+## Secrets / config overrides
+appsettings.Development.json
+secrets.json
+*.pfx
+
+## OS
+.DS_Store
+Thumbs.db

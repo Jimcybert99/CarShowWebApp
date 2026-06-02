@@ -1,0 +1,100 @@
+@page "/admin/classes"
+@attribute [Authorize(Roles = "Admin")]
+@inject IClassService ClassService
+
+<PageTitle>Manage Classes</PageTitle>
+<h2>Vehicle Classes</h2>
+
+@if (_error is not null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+<div class="row g-4">
+    <div class="col-md-5">
+        <div class="card">
+            <div class="card-header">Add Class</div>
+            <div class="card-body">
+                <div class="input-group">
+                    <input class="form-control" placeholder="Class name (e.g. 80's Muscle)"
+                           @bind="_newName" @onkeydown="OnKeyDown" />
+                    <button class="btn btn-primary" @onclick="AddAsync" disabled="@string.IsNullOrWhiteSpace(_newName)">
+                        Add
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-7">
+        <div class="card">
+            <div class="card-header">Existing Classes (@_classes.Count)</div>
+            <ul class="list-group list-group-flush">
+                @if (_classes.Count == 0)
+                {
+                    <li class="list-group-item text-muted">No classes defined yet.</li>
+                }
+                @foreach (var cls in _classes)
+                {
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        @cls.Name
+                        <button class="btn btn-outline-danger btn-sm" @onclick="() => AskRemove(cls)">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </li>
+                }
+            </ul>
+        </div>
+    </div>
+</div>
+
+<ConfirmDialog @ref="_dialog"
+               Title="Remove Class"
+               Message="@($"Remove class \"{_removeTarget?.Name}\"? Vehicles in this class will become unclassified.")"
+               ConfirmText="Remove"
+               OnConfirmed="DoRemoveAsync" />
+
+@code {
+    private List<VehicleClass> _classes = new();
+    private string _newName = string.Empty;
+    private ConfirmDialog _dialog = default!;
+    private VehicleClass? _removeTarget;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() =>
+        _classes = await ClassService.GetAllAsync();
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await AddAsync();
+    }
+
+    private async Task AddAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newName)) return;
+        _error = null;
+        try
+        {
+            await ClassService.AddAsync(_newName.Trim());
+            _newName = string.Empty;
+            _classes = await ClassService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void AskRemove(VehicleClass cls)
+    {
+        _removeTarget = cls;
+        _dialog.Show();
+    }
+
+    private async Task DoRemoveAsync()
+    {
+        if (_removeTarget is null) return;
+        await ClassService.RemoveAsync(_removeTarget.Id);
+        _classes = await ClassService.GetAllAsync();
+    }
+}

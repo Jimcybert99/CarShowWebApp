@@ -1,0 +1,109 @@
+@page "/vehicles/my"
+@attribute [Authorize]
+@inject IVehicleService VehicleService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<ApplicationUser> UserManager
+
+<PageTitle>My Vehicles</PageTitle>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>My Vehicles</h2>
+    <a href="/vehicles/register" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg"></i> Register New
+    </a>
+</div>
+
+@if (_vehicles is null)
+{
+    <p>Loading…</p>
+}
+else if (_vehicles.Count == 0)
+{
+    <p class="text-muted">No vehicles registered yet.</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th>#</th>
+                    <th>Vehicle</th>
+                    <th>Owner</th>
+                    <th>Classes</th>
+                    <th>Photo</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var v in _vehicles)
+                {
+                    <tr>
+                        <td class="fw-bold">@v.EntryNumber</td>
+                        <td>@v.Year @v.Make @v.Model</td>
+                        <td>@v.OwnerName</td>
+                        <td>
+                            @foreach (var c in v.Classes)
+                            {
+                                <span class="badge bg-secondary me-1">@c.Name</span>
+                            }
+                        </td>
+                        <td>
+                            @if (v.PhotoUrl is not null)
+                            {
+                                <a href="@v.PhotoUrl" target="_blank">
+                                    <img src="@v.PhotoUrl" alt="photo" style="height:40px;object-fit:cover;border-radius:4px" />
+                                </a>
+                            }
+                        </td>
+                        <td>
+                            <button class="btn btn-danger btn-sm" @onclick="() => AskDelete(v)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<ConfirmDialog @ref="_dialog"
+               Title="Delete Entry"
+               Message="@($"Delete entry #{_deleteTarget?.EntryNumber} ({_deleteTarget?.Year} {_deleteTarget?.Make} {_deleteTarget?.Model})? This cannot be undone.")"
+               OnConfirmed="DoDeleteAsync" />
+
+@code {
+    private List<Vehicle>? _vehicles;
+    private ConfirmDialog _dialog = default!;
+    private Vehicle? _deleteTarget;
+    private string? _userId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(auth.User);
+        _userId = user?.Id;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (_userId is null) return;
+        _vehicles = await VehicleService.GetByOwnerAsync(_userId);
+    }
+
+    private void AskDelete(Vehicle v)
+    {
+        _deleteTarget = v;
+        _dialog.Show();
+    }
+
+    private async Task DoDeleteAsync()
+    {
+        if (_deleteTarget is null || _userId is null) return;
+        await VehicleService.DeleteAsync(_deleteTarget.Id, _userId, "User");
+        await LoadAsync();
+    }
+}

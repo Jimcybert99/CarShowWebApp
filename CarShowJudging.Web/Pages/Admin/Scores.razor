@@ -1,0 +1,211 @@
+@page "/admin/scores"
+@attribute [Authorize(Roles = "Admin,Judge")]
+@inject IScoreService ScoreService
+@inject IClassService ClassService
+@inject IVehicleService VehicleService
+@inject AuthenticationStateProvider AuthStateProvider
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<ApplicationUser> UserManager
+
+<PageTitle>Scoring Leaderboard</PageTitle>
+
+<div class="d-flex flex-wrap align-items-end gap-3 mb-4">
+    <h2 class="mb-0 me-auto">Scoring Leaderboard</h2>
+
+    <div>
+        <label class="form-label mb-1 small fw-semibold">Filter by Class</label>
+        <select class="form-select form-select-sm" @onchange="OnClassChanged">
+            <option value="">All Classes</option>
+            @foreach (var cls in _classes)
+            {
+                <option value="@cls.Id">@cls.Name</option>
+            }
+        </select>
+    </div>
+
+    <div>
+        <label class="form-label mb-1 small fw-semibold">Sort by</label>
+        <select class="form-select form-select-sm" @onchange="OnSortChanged">
+            <option value="">Overall Score</option>
+            <option value="Condition">Condition</option>
+            <option value="PaintAndBody">Paint &amp; Body</option>
+            <option value="Interior">Interior</option>
+            <option value="ShowAppeal">Show Appeal</option>
+            <option value="SuperCoolnessFactor">Super Coolness Factor</option>
+        </select>
+    </div>
+</div>
+
+@if (_rows is null)
+{
+    <p>Loading…</p>
+}
+else if (_rows.Count == 0)
+{
+    <p class="text-muted">No entries match the current filter.</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-dark sticky-top">
+                <tr>
+                    <th style="width:50px">#</th>
+                    <th>Vehicle</th>
+                    <th>Owner</th>
+                    <th>Classes</th>
+                    <th class="text-center">Condition</th>
+                    <th class="text-center">Paint &amp; Body</th>
+                    <th class="text-center">Interior</th>
+                    <th class="text-center">Show Appeal</th>
+                    <th class="text-center">Super Coolness</th>
+                    <th class="text-center">Overall</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                <Virtualize Items="_rows" Context="row">
+                    <tr class="entry-row" @onclick="() => ToggleExpand(row.VehicleId)">
+                        <td class="fw-bold text-center">@row.EntryNumber</td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                @if (row.PhotoUrl is not null)
+                                {
+                                    <img src="@row.PhotoUrl" alt="" style="height:36px;width:54px;object-fit:cover;border-radius:4px" />
+                                }
+                                <span>@row.Year @row.Make @row.Model</span>
+                            </div>
+                        </td>
+                        <td>@row.OwnerName</td>
+                        <td>
+                            @foreach (var c in row.ClassNames)
+                            {
+                                <span class="badge bg-secondary me-1">@c</span>
+                            }
+                        </td>
+                        <td class="text-center">@FormatScore(row.AvgCondition)</td>
+                        <td class="text-center">@FormatScore(row.AvgPaintAndBody)</td>
+                        <td class="text-center">@FormatScore(row.AvgInterior)</td>
+                        <td class="text-center">@FormatScore(row.AvgShowAppeal)</td>
+                        <td class="text-center">@FormatScore(row.AvgSuperCoolnessFactor)</td>
+                        <td class="text-center fw-bold @(row.OverallScore.HasValue ? "text-success" : "text-muted")">
+                            @FormatScore(row.OverallScore)
+                        </td>
+                        <td>
+                            <button class="btn btn-danger btn-sm" @onclick:stopPropagation="true"
+                                    @onclick="() => AskDelete(row)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    @if (_expandedIds.Contains(row.VehicleId))
+                    {
+                        <tr class="table-light">
+                            <td colspan="11" class="ps-4">
+                                @if (row.JudgeScores.Count == 0)
+                                {
+                                    <span class="text-muted small">No scores submitted yet.</span>
+                                }
+                                else
+                                {
+                                    <table class="table table-sm table-bordered mb-0" style="max-width:700px">
+                                        <thead class="table-secondary">
+                                            <tr>
+                                                <th>Judge</th>
+                                                <th class="text-center">Condition</th>
+                                                <th class="text-center">Paint &amp; Body</th>
+                                                <th class="text-center">Interior</th>
+                                                <th class="text-center">Show Appeal</th>
+                                                <th class="text-center">Super Coolness</th>
+                                                <th class="text-center">Overall</th>
+                                                <th>Scored</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var js in row.JudgeScores)
+                                            {
+                                                <tr>
+                                                    <td>@js.JudgeName</td>
+                                                    <td class="text-center">@js.Condition</td>
+                                                    <td class="text-center">@js.PaintAndBody</td>
+                                                    <td class="text-center">@js.Interior</td>
+                                                    <td class="text-center">@js.ShowAppeal</td>
+                                                    <td class="text-center">@js.SuperCoolnessFactor</td>
+                                                    <td class="text-center fw-bold">@js.Overall.ToString("F1")</td>
+                                                    <td class="small text-muted">@js.ScoredAt.LocalDateTime.ToString("g")</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </Virtualize>
+            </tbody>
+        </table>
+    </div>
+}
+
+<ConfirmDialog @ref="_dialog"
+               Title="Delete Entry"
+               Message="@($"Delete entry #{_deleteTarget?.EntryNumber} ({_deleteTarget?.Year} {_deleteTarget?.Make} {_deleteTarget?.Model})?")"
+               OnConfirmed="DoDeleteAsync" />
+
+@code {
+    private List<ScoringRowDto>? _rows;
+    private List<VehicleClass> _classes = new();
+    private HashSet<int> _expandedIds = new();
+    private ConfirmDialog _dialog = default!;
+    private ScoringRowDto? _deleteTarget;
+    private int? _selectedClassId;
+    private string? _sortBy;
+    private string? _userId;
+    private string _userRole = "Judge";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(auth.User);
+        _userId = user?.Id;
+        _userRole = auth.User.IsInRole("Admin") ? "Admin" : "Judge";
+        _classes = await ClassService.GetAllAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() =>
+        _rows = await ScoreService.GetScoringRowsAsync(_selectedClassId, _sortBy);
+
+    private async Task OnClassChanged(ChangeEventArgs e)
+    {
+        _selectedClassId = string.IsNullOrEmpty(e.Value?.ToString()) ? null : int.Parse(e.Value.ToString()!);
+        await LoadAsync();
+    }
+
+    private async Task OnSortChanged(ChangeEventArgs e)
+    {
+        _sortBy = string.IsNullOrEmpty(e.Value?.ToString()) ? null : e.Value.ToString();
+        await LoadAsync();
+    }
+
+    private void ToggleExpand(int id)
+    {
+        if (!_expandedIds.Remove(id))
+            _expandedIds.Add(id);
+    }
+
+    private void AskDelete(ScoringRowDto row)
+    {
+        _deleteTarget = row;
+        _dialog.Show();
+    }
+
+    private async Task DoDeleteAsync()
+    {
+        if (_deleteTarget is null || _userId is null) return;
+        await VehicleService.DeleteAsync(_deleteTarget.VehicleId, _userId, _userRole);
+        await LoadAsync();
+    }
+
+    private static string FormatScore(double? v) => v.HasValue ? v.Value.ToString("F1") : "—";
+}

@@ -1,0 +1,53 @@
+@if (_visible && _score is not null && _vehicle is not null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-check-circle-fill me-2"></i>Entry Judged
+                    </h5>
+                </div>
+                <div class="modal-body">
+                    <p class="fw-semibold">Entry #@_vehicle.EntryNumber — @_vehicle.Year @_vehicle.Make @_vehicle.Model</p>
+                    <p class="text-muted small">Owner: @_vehicle.OwnerName</p>
+                    <table class="table table-sm table-bordered mt-3">
+                        <tbody>
+                            <tr><th>Condition</th><td>@_score.Condition / 10</td></tr>
+                            <tr><th>Paint &amp; Body</th><td>@_score.PaintAndBody / 10</td></tr>
+                            <tr><th>Interior</th><td>@_score.Interior / 10</td></tr>
+                            <tr><th>Show Appeal</th><td>@_score.ShowAppeal / 10</td></tr>
+                            <tr><th>Super Coolness Factor</th><td>@_score.SuperCoolnessFactor / 10</td></tr>
+                            <tr class="table-dark fw-bold"><th>Overall</th><td>@_score.Overall.ToString("F1") / 10</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-success" @onclick="Close">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public EventCallback OnClosed { get; set; }
+
+    private bool _visible;
+    private Score? _score;
+    private Vehicle? _vehicle;
+
+    public void Show(Score score, Vehicle vehicle)
+    {
+        _score = score;
+        _vehicle = vehicle;
+        _visible = true;
+        StateHasChanged();
+    }
+
+    private async Task Close()
+    {
+        _visible = false;
+        await OnClosed.InvokeAsync();
+    }
+}

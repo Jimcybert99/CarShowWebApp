@@ -1,0 +1,134 @@
+@page "/judge/register-vehicle"
+@attribute [Authorize(Roles = "Judge,Admin")]
+@inject IVehicleService VehicleService
+@inject IClassService ClassService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<ApplicationUser> UserManager
+
+<PageTitle>Register Vehicle on Behalf</PageTitle>
+<h2>Register Vehicle on Behalf of Owner</h2>
+
+@if (_success)
+{
+    <div class="alert alert-success">Entry #@_newEntryNumber registered successfully. <a href="/judge/entries">View entries</a></div>
+}
+
+@if (_error is not null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+<div class="card" style="max-width:560px">
+    <div class="card-body">
+        <EditForm Model="_dto" OnValidSubmit="SubmitAsync">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" />
+
+            <div class="mb-3">
+                <label class="form-label">Owner Name</label>
+                <InputText class="form-control" @bind-Value="_dto.OwnerName" />
+            </div>
+            <div class="row g-2 mb-3">
+                <div class="col-5">
+                    <label class="form-label">Year</label>
+                    <InputNumber class="form-control" @bind-Value="_dto.Year" />
+                </div>
+                <div class="col">
+                    <label class="form-label">Make</label>
+                    <InputText class="form-control" @bind-Value="_dto.Make" />
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Model</label>
+                <InputText class="form-control" @bind-Value="_dto.Model" />
+            </div>
+
+            @if (_classes.Count > 0)
+            {
+                <div class="mb-3">
+                    <label class="form-label">Classes <span class="text-muted small">(optional)</span></label>
+                    @foreach (var cls in _classes)
+                    {
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="cls_@cls.Id"
+                                   checked="@_selectedClassIds.Contains(cls.Id)"
+                                   @onchange="e => ToggleClass(cls.Id, (bool)e.Value!)" />
+                            <label class="form-check-label" for="cls_@cls.Id">@cls.Name</label>
+                        </div>
+                    }
+                </div>
+            }
+
+            <div class="mb-3">
+                <label class="form-label">Vehicle Photo <span class="text-muted small">(optional)</span></label>
+                <InputFile class="form-control" OnChange="OnPhotoSelected" accept="image/*" />
+            </div>
+
+            <button type="submit" class="btn btn-primary" disabled="@_saving">
+                @(_saving ? "Registering…" : "Register Vehicle")
+            </button>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private VehicleRegistrationDto _dto = new();
+    private List<VehicleClass> _classes = new();
+    private HashSet<int> _selectedClassIds = new();
+    private IBrowserFile? _photo;
+    private bool _saving;
+    private bool _success;
+    private string? _error;
+    private int _newEntryNumber;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _classes = await ClassService.GetAllAsync();
+        _dto.Year = DateTime.UtcNow.Year;
+    }
+
+    private void ToggleClass(int id, bool selected)
+    {
+        if (selected) _selectedClassIds.Add(id);
+        else _selectedClassIds.Remove(id);
+    }
+
+    private void OnPhotoSelected(InputFileChangeEventArgs e) => _photo = e.File;
+
+    private async Task SubmitAsync()
+    {
+        _saving = true;
+        _error = null;
+        _success = false;
+        try
+        {
+            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = await UserManager.GetUserAsync(auth.User);
+            if (user is null) { _error = "Not authenticated."; return; }
+
+            _dto.SelectedClassIds = _selectedClassIds.ToList();
+
+            if (_photo is not null)
+            {
+                _dto.PhotoStream = _photo.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+                _dto.PhotoFileName = _photo.Name;
+            }
+
+            var vehicle = await VehicleService.RegisterAsync(_dto, user.Id);
+            _newEntryNumber = vehicle.EntryNumber;
+            _success = true;
+            _dto = new VehicleRegistrationDto { Year = DateTime.UtcNow.Year };
+            _selectedClassIds.Clear();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

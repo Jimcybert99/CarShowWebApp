@@ -1,0 +1,50 @@
+@page "/account/profile"
+@attribute [Authorize]
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Profile</PageTitle>
+<h2>My Profile</h2>
+
+@if (_saved)
+{
+    <div class="alert alert-success">Profile updated.</div>
+}
+
+@if (_user is not null)
+{
+    <div class="card" style="max-width:400px">
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label">Username</label>
+                <input class="form-control" value="@_user.UserName" disabled />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Display Name</label>
+                <input class="form-control" @bind="_displayName" />
+            </div>
+            <button class="btn btn-primary" @onclick="SaveAsync">Save</button>
+        </div>
+    </div>
+}
+
+@code {
+    private ApplicationUser? _user;
+    private string _displayName = string.Empty;
+    private bool _saved;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        _user = await UserManager.GetUserAsync(auth.User);
+        _displayName = _user?.DisplayName ?? string.Empty;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_user is null) return;
+        _user.DisplayName = _displayName;
+        await UserManager.UpdateAsync(_user);
+        _saved = true;
+    }
+}

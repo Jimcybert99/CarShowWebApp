@@ -1,0 +1,152 @@
+@page "/admin/users"
+@attribute [Authorize(Roles = "Admin")]
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Manage Users</PageTitle>
+<h2>Manage Users</h2>
+
+@if (_error is not null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+@if (_rows is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th>Username</th>
+                    <th>Display Name</th>
+                    <th>Roles</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in _rows)
+                {
+                    <tr>
+                        <td>@row.User.UserName</td>
+                        <td>@row.User.DisplayName</td>
+                        <td>
+                            @foreach (var role in row.Roles.OrderBy(r => r))
+                            {
+                                var badgeClass = role switch
+                                {
+                                    "Admin" => "bg-danger",
+                                    "Judge" => "bg-primary",
+                                    _ => "bg-secondary"
+                                };
+                                <span class="badge @badgeClass me-1">@role</span>
+                            }
+                        </td>
+                        <td class="text-end">
+                            @if (!row.Roles.Contains("Admin") && row.User.Id != _currentUserId)
+                            {
+                                <div class="d-flex gap-2 justify-content-end">
+                                    @if (row.Roles.Contains("Judge"))
+                                    {
+                                        <button class="btn btn-outline-secondary btn-sm"
+                                                @onclick="() => RemoveJudgeAsync(row)">
+                                            Remove Judge
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-primary btn-sm"
+                                                @onclick="() => MakeJudgeAsync(row)">
+                                            Make Judge
+                                        </button>
+                                    }
+                                    <button class="btn btn-outline-danger btn-sm"
+                                            @onclick="() => PromptDelete(row)">
+                                        Delete
+                                    </button>
+                                </div>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<ConfirmDialog @ref="_confirmDialog"
+               Title="Delete User"
+               Message="@($"Permanently delete user \"{_pendingDelete?.User.UserName}\"? This cannot be undone.")"
+               ConfirmText="Delete"
+               OnConfirmed="DeleteConfirmedAsync" />
+
+@code {
+    private List<UserRow>? _rows;
+    private string? _error;
+    private string? _currentUserId;
+    private UserRow? _pendingDelete;
+    private ConfirmDialog _confirmDialog = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var me = await UserManager.GetUserAsync(auth.User);
+        _currentUserId = me?.Id;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var users = UserManager.Users.OrderBy(u => u.UserName).ToList();
+        var rows = new List<UserRow>();
+        foreach (var user in users)
+        {
+            var roles = await UserManager.GetRolesAsync(user);
+            rows.Add(new UserRow(user, roles.ToList()));
+        }
+        _rows = rows;
+    }
+
+    private async Task MakeJudgeAsync(UserRow row)
+    {
+        _error = null;
+        var result = await UserManager.AddToRoleAsync(row.User, "Judge");
+        if (result.Succeeded)
+            await LoadAsync();
+        else
+            _error = string.Join(", ", result.Errors.Select(e => e.Description));
+    }
+
+    private async Task RemoveJudgeAsync(UserRow row)
+    {
+        _error = null;
+        var result = await UserManager.RemoveFromRoleAsync(row.User, "Judge");
+        if (result.Succeeded)
+            await LoadAsync();
+        else
+            _error = string.Join(", ", result.Errors.Select(e => e.Description));
+    }
+
+    private void PromptDelete(UserRow row)
+    {
+        _pendingDelete = row;
+        _confirmDialog.Show();
+    }
+
+    private async Task DeleteConfirmedAsync()
+    {
+        if (_pendingDelete is null) return;
+        _error = null;
+        var result = await UserManager.DeleteAsync(_pendingDelete.User);
+        if (result.Succeeded)
+            await LoadAsync();
+        else
+            _error = string.Join(", ", result.Errors.Select(e => e.Description));
+        _pendingDelete = null;
+    }
+
+    private record UserRow(ApplicationUser User, List<string> Roles);
+}

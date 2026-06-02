@@ -1,0 +1,105 @@
+@page "/admin/entries"
+@attribute [Authorize(Roles = "Admin,Judge")]
+@inject IVehicleService VehicleService
+@inject AuthenticationStateProvider AuthStateProvider
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<ApplicationUser> UserManager
+
+<PageTitle>All Entries</PageTitle>
+<h2>All Entries</h2>
+
+@if (_vehicles is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th>#</th>
+                    <th>Vehicle</th>
+                    <th>Owner</th>
+                    <th>Classes</th>
+                    <th>Judges Scored</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var v in _vehicles)
+                {
+                    <tr>
+                        <td class="fw-bold">@v.EntryNumber</td>
+                        <td>@v.Year @v.Make @v.Model</td>
+                        <td>@v.OwnerName</td>
+                        <td>
+                            @foreach (var c in v.Classes)
+                            {
+                                <span class="badge bg-secondary me-1">@c.Name</span>
+                            }
+                        </td>
+                        <td>
+                            @if (v.Scores.Count == 0)
+                            {
+                                <span class="text-muted small">None</span>
+                            }
+                            else
+                            {
+                                @foreach (var s in v.Scores)
+                                {
+                                    <span class="badge bg-success me-1">
+                                        @(s.Judge?.DisplayName ?? s.Judge?.UserName ?? "Judge")
+                                    </span>
+                                }
+                            }
+                        </td>
+                        <td>
+                            <button class="btn btn-danger btn-sm" @onclick="() => AskDelete(v)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<ConfirmDialog @ref="_dialog"
+               Title="Delete Entry"
+               Message="@($"Delete entry #{_deleteTarget?.EntryNumber} ({_deleteTarget?.Year} {_deleteTarget?.Make} {_deleteTarget?.Model})?")"
+               OnConfirmed="DoDeleteAsync" />
+
+@code {
+    private List<Vehicle>? _vehicles;
+    private ConfirmDialog _dialog = default!;
+    private Vehicle? _deleteTarget;
+    private string? _userId;
+    private string _userRole = "Judge";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(auth.User);
+        _userId = user?.Id;
+        _userRole = auth.User.IsInRole("Admin") ? "Admin" : "Judge";
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() =>
+        _vehicles = await VehicleService.GetAllAsync();
+
+    private void AskDelete(Vehicle v)
+    {
+        _deleteTarget = v;
+        _dialog.Show();
+    }
+
+    private async Task DoDeleteAsync()
+    {
+        if (_deleteTarget is null || _userId is null) return;
+        await VehicleService.DeleteAsync(_deleteTarget.Id, _userId, _userRole);
+        await LoadAsync();
+    }
+}

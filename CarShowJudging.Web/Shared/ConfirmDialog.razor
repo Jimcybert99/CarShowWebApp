@@ -1,0 +1,38 @@
+@if (_visible)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@Title</h5>
+                </div>
+                <div class="modal-body">
+                    <p>@Message</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+                    <button class="btn btn-danger" @onclick="Confirm">@ConfirmText</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string Title { get; set; } = "Confirm";
+    [Parameter] public string Message { get; set; } = "Are you sure?";
+    [Parameter] public string ConfirmText { get; set; } = "Delete";
+    [Parameter] public EventCallback OnConfirmed { get; set; }
+
+    private bool _visible;
+
+    public void Show() => _visible = true;
+
+    private void Cancel() => _visible = false;
+
+    private async Task Confirm()
+    {
+        _visible = false;
+        await OnConfirmed.InvokeAsync();
+    }
+}

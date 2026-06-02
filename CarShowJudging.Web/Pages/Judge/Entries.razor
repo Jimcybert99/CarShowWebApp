@@ -1,0 +1,94 @@
+@page "/judge/entries"
+@attribute [Authorize(Roles = "Judge,Admin")]
+@inject IVehicleService VehicleService
+@inject IScoreService ScoreService
+@inject AuthenticationStateProvider AuthStateProvider
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<ApplicationUser> UserManager
+
+<PageTitle>Entries to Judge</PageTitle>
+<h2>Entries</h2>
+<p class="text-muted">Select an entry to submit your scores.</p>
+
+@if (_vehicles is null)
+{
+    <p>Loading…</p>
+}
+else if (_vehicles.Count == 0)
+{
+    <p class="text-muted">No entries registered yet.</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th style="width:60px">#</th>
+                    <th>Vehicle</th>
+                    <th>Owner</th>
+                    <th>Classes</th>
+                    <th>Your Score</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var v in _vehicles)
+                {
+                    var scored = _scoredIds.Contains(v.Id);
+                    <tr class="entry-row">
+                        <td class="fw-bold text-center">@v.EntryNumber</td>
+                        <td>@v.Year @v.Make @v.Model</td>
+                        <td>@v.OwnerName</td>
+                        <td>
+                            @foreach (var c in v.Classes)
+                            {
+                                <span class="badge bg-secondary me-1">@c.Name</span>
+                            }
+                        </td>
+                        <td>
+                            @if (scored)
+                            {
+                                <span class="badge bg-success">Scored</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-warning text-dark">Not scored</span>
+                            }
+                        </td>
+                        <td>
+                            <a href="/judge/entries/@v.Id/score" class="btn btn-primary btn-sm">
+                                @(scored ? "Re-score" : "Score")
+                            </a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<Vehicle>? _vehicles;
+    private HashSet<int> _scoredIds = new();
+    private string? _judgeId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(auth.User);
+        _judgeId = user?.Id;
+
+        _vehicles = await VehicleService.GetAllAsync();
+
+        if (_judgeId is not null)
+        {
+            foreach (var v in _vehicles)
+            {
+                var existing = await ScoreService.GetByVehicleAndJudgeAsync(v.Id, _judgeId);
+                if (existing is not null)
+                    _scoredIds.Add(v.Id);
+            }
+        }
+    }
+}
