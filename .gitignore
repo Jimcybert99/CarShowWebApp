@@ -13,6 +13,11 @@ obj/
 publish/
 out/
 
+## Local databases
+*.db
+*.db-shm
+*.db-wal
+
 ## Secrets / config overrides
 appsettings.Development.json
 secrets.json
