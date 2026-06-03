@@ -173,7 +173,7 @@
     [Parameter] public EventCallback OnChanged { get; set; }
 
     bool CanMarkImportant => UserRole is "Admin" or "Judge";
-    bool CanEditNote(SiteNote n) => !string.IsNullOrEmpty(UserId) && (n.AuthorId == UserId || UserRole == "Admin");
+    bool CanEditNote(SiteNote n) => !string.IsNullOrEmpty(UserId) && n.AuthorId == UserId;
     bool CanDeleteNote(SiteNote n) => !string.IsNullOrEmpty(UserId) && (n.AuthorId == UserId || UserRole == "Admin");
 
     bool _editing, _replying;

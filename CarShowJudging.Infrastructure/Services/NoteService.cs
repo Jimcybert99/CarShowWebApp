@@ -111,7 +111,7 @@ public class NoteService : INoteService
         var note = await _db.SiteNotes.FindAsync(noteId)
             ?? throw new KeyNotFoundException($"Note {noteId} not found.");
 
-        if (!isAdmin && note.AuthorId != requestingUserId)
+        if (note.AuthorId != requestingUserId)
             throw new UnauthorizedAccessException("You can only edit your own notes.");
 
         note.Content = newContent;
