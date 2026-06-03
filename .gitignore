@@ -23,6 +23,11 @@ appsettings.Development.json
 secrets.json
 *.pfx
 
+## Claude Code local files
+.claude/
+PLAN.md
+plantoonline.md
+
 ## OS
 .DS_Store
 Thumbs.db
