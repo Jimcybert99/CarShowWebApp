@@ -21,11 +21,22 @@ public class VehicleService : IVehicleService
     {
         await using var tx = await _db.Database.BeginTransactionAsync();
 
-        var nextNumber = (await _db.Vehicles.MaxAsync(v => (int?)v.EntryNumber) ?? 0) + 1;
+        int entryNumber;
+        if (dto.EntryNumber > 0)
+        {
+            var taken = await _db.Vehicles.AnyAsync(v => v.EntryNumber == dto.EntryNumber);
+            if (taken)
+                throw new InvalidOperationException($"Entry number {dto.EntryNumber} is already in use.");
+            entryNumber = dto.EntryNumber;
+        }
+        else
+        {
+            entryNumber = (await _db.Vehicles.MaxAsync(v => (int?)v.EntryNumber) ?? 0) + 1;
+        }
 
         var vehicle = new Vehicle
         {
-            EntryNumber = nextNumber,
+            EntryNumber = entryNumber,
             OwnerName = dto.OwnerName,
             RegisteredById = registeredById,
             Make = dto.Make,
@@ -88,4 +99,7 @@ public class VehicleService : IVehicleService
         _db.Vehicles.Remove(vehicle);
         await _db.SaveChangesAsync();
     }
+
+    public Task<List<int>> GetUsedEntryNumbersAsync() =>
+        _db.Vehicles.Select(v => v.EntryNumber).OrderBy(n => n).ToListAsync();
 }

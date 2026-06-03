@@ -2,14 +2,18 @@
 @attribute [Authorize]
 @inject IVehicleService VehicleService
 @inject IClassService ClassService
+@inject INoteService NoteService
 @inject AuthenticationStateProvider AuthStateProvider
-@inject NavigationManager Nav
 @using Microsoft.AspNetCore.Identity
 @inject UserManager<ApplicationUser> UserManager
 
 <PageTitle>Register Vehicle</PageTitle>
 <h2>Register a Vehicle</h2>
 
+@if (_success)
+{
+    <div class="alert alert-success">Entry #@_newEntryNumber registered successfully.</div>
+}
 @if (_error is not null)
 {
     <div class="alert alert-danger">@_error</div>
@@ -20,6 +24,16 @@
         <EditForm Model="_dto" OnValidSubmit="SubmitAsync">
             <DataAnnotationsValidator />
             <ValidationSummary class="text-danger" />
+
+            <div class="mb-3">
+                <label class="form-label">Entry Number</label>
+                <select class="form-select" @bind="_dto.EntryNumber">
+                    @foreach (var n in _availableNumbers)
+                    {
+                        <option value="@n">#@n</option>
+                    }
+                </select>
+            </div>
 
             <div class="mb-3">
                 <label class="form-label">Owner Name</label>
@@ -61,6 +75,13 @@
                 <InputFile class="form-control" OnChange="OnPhotoSelected" accept="image/*" />
             </div>
 
+            <div class="mb-3">
+                <label class="form-label">Registration Note <span class="text-muted small">(optional)</span></label>
+                <textarea class="form-control" rows="2" maxlength="1000"
+                          placeholder="Condition notes, special details, observations…"
+                          @bind="_registrationNote" @bind:event="oninput"></textarea>
+            </div>
+
             <button type="submit" class="btn btn-primary" disabled="@_saving">
                 @(_saving ? "Registering…" : "Register Vehicle")
             </button>
@@ -68,18 +89,49 @@
     </div>
 </div>
 
+<NotesPanel PageContext="@PageContexts.RegisterVehicle" PageTitle="Register Vehicle" />
+
 @code {
     private VehicleRegistrationDto _dto = new();
     private List<VehicleClass> _classes = new();
     private HashSet<int> _selectedClassIds = new();
+    private List<int> _availableNumbers = new();
     private IBrowserFile? _photo;
+    private string _registrationNote = string.Empty;
     private bool _saving;
+    private bool _success;
+    private int _newEntryNumber;
     private string? _error;
+    private string _userId = string.Empty;
+    private string _userDisplayName = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        _userId = UserManager.GetUserId(auth.User) ?? string.Empty;
+        if (!string.IsNullOrEmpty(_userId))
+        {
+            var user = await UserManager.FindByIdAsync(_userId);
+            _userDisplayName = (user?.DisplayName is { Length: > 0 } dn ? dn : null)
+                ?? user?.UserName
+                ?? auth.User.Identity?.Name
+                ?? string.Empty;
+        }
         _classes = await ClassService.GetAllAsync();
         _dto.Year = DateTime.UtcNow.Year;
+        await LoadAvailableNumbersAsync();
+    }
+
+    private async Task LoadAvailableNumbersAsync()
+    {
+        var used = await VehicleService.GetUsedEntryNumbersAsync();
+        var usedSet = used.ToHashSet();
+        var max = used.Count > 0 ? used.Max() : 0;
+        _availableNumbers = Enumerable.Range(1, max)
+            .Where(n => !usedSet.Contains(n))
+            .Concat(new[] { max + 1 })
+            .ToList();
+        _dto.EntryNumber = max + 1;
     }
 
     private void ToggleClass(int id, bool selected)
@@ -94,11 +146,10 @@
     {
         _saving = true;
         _error = null;
+        _success = false;
         try
         {
-            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
-            var user = await UserManager.GetUserAsync(auth.User);
-            if (user is null) { _error = "Not authenticated."; return; }
+            if (string.IsNullOrEmpty(_userId)) { _error = "Not authenticated."; return; }
 
             _dto.SelectedClassIds = _selectedClassIds.ToList();
 
@@ -108,8 +159,21 @@
                 _dto.PhotoFileName = _photo.Name;
             }
 
-            await VehicleService.RegisterAsync(_dto, user.Id);
-            Nav.NavigateTo("/vehicles/my");
+            var vehicle = await VehicleService.RegisterAsync(_dto, _userId);
+            _newEntryNumber = vehicle.EntryNumber;
+
+            if (!string.IsNullOrWhiteSpace(_registrationNote))
+            {
+                await NoteService.AddAsync(null, vehicle.Id, null,
+                    _userId, _userDisplayName, _registrationNote.Trim(), false);
+            }
+
+            _success = true;
+            _dto = new VehicleRegistrationDto { Year = DateTime.UtcNow.Year };
+            _selectedClassIds.Clear();
+            _photo = null;
+            _registrationNote = string.Empty;
+            await LoadAvailableNumbersAsync();
         }
         catch (Exception ex)
         {

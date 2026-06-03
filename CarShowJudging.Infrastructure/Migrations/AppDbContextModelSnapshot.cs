@@ -187,6 +187,53 @@ namespace CarShowJudging.Infrastructure.Migrations
                     b.ToTable("VehicleClasses", (string)null);
                 });
 
+            modelBuilder.Entity("CarShowJudging.Core.Models.SiteNote", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AuthorDisplayName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AuthorId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset?>("EditedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsImportant")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PageContext")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("ParentNoteId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("VehicleId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PageContext");
+
+                    b.HasIndex("ParentNoteId");
+
+                    b.HasIndex("VehicleId");
+
+                    b.ToTable("SiteNotes", (string)null);
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
                 {
                     b.Property<string>("Id")
@@ -328,6 +375,33 @@ namespace CarShowJudging.Infrastructure.Migrations
                     b.HasIndex("VehiclesId");
 
                     b.ToTable("VehicleVehicleClass", (string)null);
+                });
+
+            modelBuilder.Entity("CarShowJudging.Core.Models.VehicleNote", b =>
+                {
+                    b.HasOne("CarShowJudging.Core.Models.Vehicle", "Vehicle")
+                        .WithMany()
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Vehicle");
+                });
+
+            modelBuilder.Entity("CarShowJudging.Core.Models.SiteNote", b =>
+                {
+                    b.HasOne("CarShowJudging.Core.Models.SiteNote", "Parent")
+                        .WithMany("Replies")
+                        .HasForeignKey("ParentNoteId");
+
+                    b.HasOne("CarShowJudging.Core.Models.Vehicle", "Vehicle")
+                        .WithMany()
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Parent");
+                    b.Navigation("Replies");
+                    b.Navigation("Vehicle");
                 });
 
             modelBuilder.Entity("CarShowJudging.Core.Models.Score", b =>

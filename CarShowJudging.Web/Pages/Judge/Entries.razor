@@ -68,20 +68,23 @@ else
     </div>
 }
 
+<NotesPanel PageContext="@PageContexts.JudgeEntries" PageTitle="Entries"
+            Vehicles="_vehicles" />
+
 @code {
     private List<Vehicle>? _vehicles;
     private HashSet<int> _scoredIds = new();
-    private string? _judgeId;
+    private string _judgeId = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = await UserManager.GetUserAsync(auth.User);
-        _judgeId = user?.Id;
+        _judgeId = user?.Id ?? string.Empty;
 
         _vehicles = await VehicleService.GetAllAsync();
 
-        if (_judgeId is not null)
+        if (!string.IsNullOrEmpty(_judgeId))
         {
             foreach (var v in _vehicles)
             {

@@ -147,6 +147,8 @@ else
     </div>
 }
 
+<NotesPanel PageContext="@PageContexts.AdminScores" PageTitle="Scores" />
+
 <ConfirmDialog @ref="_dialog"
                Title="Delete Entry"
                Message="@($"Delete entry #{_deleteTarget?.EntryNumber} ({_deleteTarget?.Year} {_deleteTarget?.Make} {_deleteTarget?.Model})?")"

@@ -1,0 +1,341 @@
+@inject INoteService NoteService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@using Microsoft.AspNetCore.Identity
+
+@* Collapsed tab — shown when panel is closed *@
+@if (!_isOpen)
+{
+    <button class="notes-tab-btn" @onclick="OpenAsync" title="Notes">
+        <i class="bi bi-chat-text-fill"></i>
+        @if (_totalCount > 0)
+        {
+            <span class="badge bg-primary rounded-pill notes-tab-badge">@_totalCount</span>
+        }
+        @if (_hasImportant)
+        {
+            <i class="bi bi-star-fill text-warning" style="font-size:.65rem"></i>
+        }
+        <span class="notes-tab-label">Notes</span>
+    </button>
+}
+
+@* Panel *@
+<div class="notes-sidebar @(_isOpen ? "open" : "")">
+    <div class="notes-sidebar-header">
+        <div class="d-flex align-items-center gap-2 flex-grow-1 overflow-hidden">
+            @if (_selectedVehicle is not null)
+            {
+                <button class="btn btn-sm btn-outline-secondary flex-shrink-0" @onclick="BackToPage">
+                    <i class="bi bi-arrow-left"></i>
+                </button>
+                <span class="fw-semibold small text-truncate">
+                    #@_selectedVehicle.EntryNumber — @_selectedVehicle.Year @_selectedVehicle.Make @_selectedVehicle.Model
+                </span>
+            }
+            else
+            {
+                <span class="fw-semibold">@PageTitle Notes</span>
+            }
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-shrink-0">
+            <select class="form-select form-select-sm" style="width:auto;font-size:.78rem"
+                    @bind="_sortOrderStr" @bind:event="onchange">
+                <option value="Ascending">Oldest first</option>
+                <option value="Descending">Newest first</option>
+                <option value="Importance">By importance</option>
+            </select>
+            <button class="btn-close" style="font-size:.75rem" @onclick="Close"></button>
+        </div>
+    </div>
+
+    <div class="notes-sidebar-body">
+        @if (_loadError is not null)
+        {
+            <div class="alert alert-danger py-1 px-2 small">@_loadError</div>
+        }
+
+        @if (_selectedVehicle is not null)
+        {
+            @* Vehicle notes view *@
+            @if (_vehicleNotesSelected.Count == 0)
+            {
+                <p class="text-muted fst-italic small">No notes for this vehicle yet.</p>
+            }
+            else
+            {
+                @foreach (var note in SortNotes(_vehicleNotesSelected))
+                {
+                    <NoteItem Note="note"
+                              UserId="@_userId"
+                              UserDisplayName="@_userDisplayName"
+                              UserRole="@_userRole"
+                              CanReply="true"
+                              OnChanged="RefreshVehicleNotesAsync" />
+                }
+            }
+        }
+        else
+        {
+            @* Page notes *@
+            @if (_pageNotes.Count == 0 && (Vehicles is null || Vehicles.Count == 0))
+            {
+                <p class="text-muted fst-italic small">No notes yet.</p>
+            }
+            else
+            {
+                @foreach (var note in SortNotes(_pageNotes))
+                {
+                    <NoteItem Note="note"
+                              UserId="@_userId"
+                              UserDisplayName="@_userDisplayName"
+                              UserRole="@_userRole"
+                              CanReply="true"
+                              OnChanged="RefreshPageNotesAsync" />
+                }
+                @if (_pageNotes.Count == 0)
+                {
+                    <p class="text-muted fst-italic small">No page notes yet.</p>
+                }
+            }
+
+            @* Vehicle list section *@
+            @if (Vehicles is not null && Vehicles.Count > 0)
+            {
+                <div class="notes-vehicle-section-header">
+                    <i class="bi bi-car-front me-1"></i>Vehicle Notes
+                </div>
+                @foreach (var v in Vehicles)
+                {
+                    var stats = _vehicleStats.TryGetValue(v.Id, out var s) ? s : (0, false);
+                    <button class="notes-vehicle-row" @onclick="async () => await SelectVehicleAsync(v)">
+                        <span class="small text-start">#@v.EntryNumber @v.Year @v.Make @v.Model</span>
+                        <div class="d-flex align-items-center gap-1">
+                            @if (stats.Item2)
+                            {
+                                <i class="bi bi-star-fill text-warning" style="font-size:.7rem"></i>
+                            }
+                            @if (stats.Item1 > 0)
+                            {
+                                <span class="badge bg-secondary rounded-pill" style="font-size:.65rem">@stats.Item1</span>
+                            }
+                            <i class="bi bi-chevron-right text-muted" style="font-size:.7rem"></i>
+                        </div>
+                    </button>
+                }
+            }
+        }
+    </div>
+
+    @* Add note footer *@
+    @if (CanAddNote())
+    {
+        <div class="notes-sidebar-footer">
+            @if (_saveError is not null)
+            {
+                <div class="alert alert-danger py-1 px-2 mb-2 small">@_saveError</div>
+            }
+            <textarea class="form-control form-control-sm mb-1" rows="2"
+                      placeholder="Add a note…"
+                      @bind="_newText" @bind:event="oninput" maxlength="1000"></textarea>
+            <div class="d-flex justify-content-between align-items-center">
+                @if (_userRole is "Admin" or "Judge")
+                {
+                    <div class="form-check mb-0">
+                        <input class="form-check-input" type="checkbox"
+                               id="new_imp_@(PageContext)_@(_selectedVehicle?.Id)" @bind="_newImportant" />
+                        <label class="form-check-label small"
+                               for="new_imp_@(PageContext)_@(_selectedVehicle?.Id)">
+                            <i class="bi bi-star text-warning"></i> Important
+                        </label>
+                    </div>
+                }
+                else
+                {
+                    <span></span>
+                }
+                <button class="btn btn-primary btn-sm" @onclick="SubmitNoteAsync"
+                        disabled="@(string.IsNullOrWhiteSpace(_newText) || _saving)">
+                    @(_saving ? "Saving…" : "Add Note")
+                </button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private enum SortOrder { Ascending, Descending, Importance }
+
+    [Parameter, EditorRequired] public string PageContext { get; set; } = string.Empty;
+    [Parameter] public string PageTitle { get; set; } = string.Empty;
+    [Parameter] public List<Vehicle>? Vehicles { get; set; }
+
+    string _userId = string.Empty, _userDisplayName = string.Empty, _userRole = string.Empty;
+    bool _isAdmin => _userRole == "Admin";
+
+    bool _isOpen;
+    Vehicle? _selectedVehicle;
+    List<SiteNote> _pageNotes = new();
+    List<SiteNote> _vehicleNotesSelected = new();
+    Dictionary<int, (int count, bool hasImportant)> _vehicleStats = new();
+
+    SortOrder _sortOrder = SortOrder.Importance;
+    string _sortOrderStr
+    {
+        get => _sortOrder.ToString();
+        set => _sortOrder = Enum.Parse<SortOrder>(value);
+    }
+
+    int _totalCount;
+    bool _hasImportant;
+    string _newText = string.Empty;
+    bool _newImportant;
+    bool _saving;
+    string? _loadError, _saveError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+
+        // GetUserId reads the NameIdentifier claim directly — no DB call, reliable in prerender.
+        _userId = UserManager.GetUserId(auth.User) ?? string.Empty;
+        _userRole = auth.User.IsInRole("Admin") ? "Admin"
+                  : auth.User.IsInRole("Judge") ? "Judge"
+                  : "User";
+
+        if (!string.IsNullOrEmpty(_userId))
+        {
+            var user = await UserManager.FindByIdAsync(_userId);
+            // Use DisplayName if non-empty, fall back to UserName, then to the identity Name claim.
+            _userDisplayName = (user?.DisplayName is { Length: > 0 } dn ? dn : null)
+                ?? user?.UserName
+                ?? auth.User.Identity?.Name
+                ?? string.Empty;
+        }
+        else
+        {
+            _userDisplayName = auth.User.Identity?.Name ?? string.Empty;
+        }
+
+        await LoadStatsAsync();
+    }
+
+    async Task LoadStatsAsync()
+    {
+        var vehicleIds = Vehicles?.Select(v => v.Id);
+        try
+        {
+            (_totalCount, _hasImportant) = await NoteService.GetStatsAsync(PageContext, vehicleIds);
+        }
+        catch { }
+    }
+
+    async Task OpenAsync()
+    {
+        _isOpen = true;
+        _loadError = null;
+        try
+        {
+            await RefreshPageNotesAsync();
+            if (Vehicles is { Count: > 0 })
+                _vehicleStats = await NoteService.GetPerVehicleStatsAsync(Vehicles.Select(v => v.Id));
+        }
+        catch (Exception ex)
+        {
+            _loadError = ex.Message;
+        }
+    }
+
+    void Close()
+    {
+        _isOpen = false;
+        _selectedVehicle = null;
+        _newText = string.Empty;
+        _saveError = null;
+    }
+
+    async Task RefreshPageNotesAsync()
+    {
+        _pageNotes = await NoteService.GetPageNotesAsync(PageContext);
+        await LoadStatsAsync();
+    }
+
+    async Task RefreshVehicleNotesAsync()
+    {
+        if (_selectedVehicle is null) return;
+        _vehicleNotesSelected = await NoteService.GetVehicleNotesAsync(_selectedVehicle.Id);
+        if (Vehicles is { Count: > 0 })
+            _vehicleStats = await NoteService.GetPerVehicleStatsAsync(Vehicles.Select(v => v.Id));
+        await LoadStatsAsync();
+    }
+
+    async Task SelectVehicleAsync(Vehicle v)
+    {
+        _selectedVehicle = v;
+        _loadError = null;
+        try
+        {
+            _vehicleNotesSelected = await NoteService.GetVehicleNotesAsync(v.Id);
+        }
+        catch (Exception ex)
+        {
+            _loadError = ex.Message;
+        }
+    }
+
+    void BackToPage() => _selectedVehicle = null;
+
+    bool CanAddNote()
+    {
+        if (_selectedVehicle is not null)
+        {
+            return _userRole is "Admin" or "Judge" ||
+                   (Vehicles?.Any(v => v.Id == _selectedVehicle.Id && v.RegisteredById == _userId) ?? false);
+        }
+        return _userRole is "Admin" or "Judge";
+    }
+
+    async Task SubmitNoteAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newText)) return;
+        _saving = true; _saveError = null;
+        try
+        {
+            if (_selectedVehicle is not null)
+                await NoteService.AddAsync(null, _selectedVehicle.Id, null,
+                    _userId, _userDisplayName, _newText.Trim(), _newImportant);
+            else
+                await NoteService.AddAsync(PageContext, null, null,
+                    _userId, _userDisplayName, _newText.Trim(), _newImportant);
+
+            _newText = string.Empty;
+            _newImportant = false;
+
+            if (_selectedVehicle is not null)
+                await RefreshVehicleNotesAsync();
+            else
+                await RefreshPageNotesAsync();
+        }
+        catch (Exception ex) { _saveError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    // Sort key: the most recent activity on a note — its own edit/create time or the latest reply.
+    // This means a newly replied-to note moves up in "Newest first" order.
+    static DateTimeOffset ActivityKey(SiteNote n)
+    {
+        var own = n.EditedAt ?? n.CreatedAt;
+        if (n.Replies.Count == 0) return own;
+        var latestReply = n.Replies.Max(r => r.CreatedAt);
+        return latestReply > own ? latestReply : own;
+    }
+
+    List<SiteNote> SortNotes(List<SiteNote> notes) => _sortOrder switch
+    {
+        SortOrder.Descending => notes.OrderByDescending(ActivityKey).ToList(),
+        SortOrder.Importance => notes
+            .OrderByDescending(n => n.IsImportant)
+            .ThenByDescending(ActivityKey).ToList(),
+        _ => notes.OrderBy(ActivityKey).ToList()
+    };
+}
