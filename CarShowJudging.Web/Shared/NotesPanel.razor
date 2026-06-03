@@ -171,7 +171,6 @@
     [Parameter] public List<Vehicle>? Vehicles { get; set; }
 
     string _userId = string.Empty, _userDisplayName = string.Empty, _userRole = string.Empty;
-    bool _isAdmin => _userRole == "Admin";
 
     bool _isOpen;
     Vehicle? _selectedVehicle;

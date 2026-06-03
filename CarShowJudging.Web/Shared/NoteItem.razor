@@ -201,7 +201,7 @@
         _error = null;
         try
         {
-            await NoteService.EditAsync(Note.Id, UserId, UserRole == "Admin", _editText.Trim(), _editImportant);
+            await NoteService.EditAsync(Note.Id, UserId, _editText.Trim(), _editImportant);
             _editing = false;
             await OnChanged.InvokeAsync();
         }
@@ -235,8 +235,7 @@
         _error = null;
         try
         {
-            await NoteService.EditAsync(_editingReplyId.Value, UserId, UserRole == "Admin",
-                _editReplyText.Trim(), _editReplyImportant);
+            await NoteService.EditAsync(_editingReplyId.Value, UserId, _editReplyText.Trim(), _editReplyImportant);
             _editingReplyId = null;
             await OnChanged.InvokeAsync();
         }

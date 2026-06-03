@@ -102,8 +102,7 @@ public class NoteService : INoteService
         return note;
     }
 
-    public async Task<SiteNote> EditAsync(int noteId, string requestingUserId, bool isAdmin,
-        string newContent, bool isImportant)
+    public async Task<SiteNote> EditAsync(int noteId, string requestingUserId, string newContent, bool isImportant)
     {
         if (string.IsNullOrEmpty(requestingUserId))
             throw new UnauthorizedAccessException("You must be signed in to edit notes.");

@@ -83,6 +83,8 @@ else
                ConfirmText="Delete"
                OnConfirmed="DeleteConfirmedAsync" />
 
+<NotesPanel PageContext="@PageContexts.AdminUsers" PageTitle="Users" />
+
 @code {
     private List<UserRow>? _rows;
     private string? _error;
@@ -150,5 +152,3 @@ else
 
     private record UserRow(ApplicationUser User, List<string> Roles);
 }
-
-<NotesPanel PageContext="@PageContexts.AdminUsers" PageTitle="Users" />

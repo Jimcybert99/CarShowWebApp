@@ -377,17 +377,6 @@ namespace CarShowJudging.Infrastructure.Migrations
                     b.ToTable("VehicleVehicleClass", (string)null);
                 });
 
-            modelBuilder.Entity("CarShowJudging.Core.Models.VehicleNote", b =>
-                {
-                    b.HasOne("CarShowJudging.Core.Models.Vehicle", "Vehicle")
-                        .WithMany()
-                        .HasForeignKey("VehicleId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Vehicle");
-                });
-
             modelBuilder.Entity("CarShowJudging.Core.Models.SiteNote", b =>
                 {
                     b.HasOne("CarShowJudging.Core.Models.SiteNote", "Parent")
