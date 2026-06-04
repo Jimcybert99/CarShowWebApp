@@ -42,8 +42,10 @@ else
                         <td>
                             @if (v.PhotoUrl is not null)
                             {
-                                <img src="@v.PhotoUrl" alt="photo"
-                                     style="height:40px;width:60px;object-fit:cover;border-radius:4px" />
+                                <a href="@v.PhotoUrl" target="_blank">
+                                    <img src="@v.PhotoUrl" alt="photo"
+                                         style="height:40px;width:60px;object-fit:cover;border-radius:4px" />
+                                </a>
                             }
                         </td>
                         <td>@v.Year @v.Make @v.Model</td>
