@@ -10,10 +10,9 @@ window.darkMode = {
     }
 };
 
-// Update in real-time when the OS setting changes, but only if the user
-// hasn't manually chosen a preference via the toggle.
+// Always respond to OS/browser preference changes and keep localStorage in sync.
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
-    if (!localStorage.getItem('theme')) {
-        document.documentElement.setAttribute('data-bs-theme', e.matches ? 'dark' : 'light');
-    }
+    const theme = e.matches ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-bs-theme', theme);
+    localStorage.setItem('theme', theme);
 });

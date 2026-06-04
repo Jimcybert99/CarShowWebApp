@@ -25,6 +25,7 @@ else
             <thead class="table-dark">
                 <tr>
                     <th style="width:60px">#</th>
+                    <th style="width:70px">Photo</th>
                     <th>Vehicle</th>
                     <th>Owner</th>
                     <th>Classes</th>
@@ -38,6 +39,13 @@ else
                     var scored = _scoredIds.Contains(v.Id);
                     <tr class="entry-row">
                         <td class="fw-bold text-center">@v.EntryNumber</td>
+                        <td>
+                            @if (v.PhotoUrl is not null)
+                            {
+                                <img src="@v.PhotoUrl" alt="photo"
+                                     style="height:40px;width:60px;object-fit:cover;border-radius:4px" />
+                            }
+                        </td>
                         <td>@v.Year @v.Make @v.Model</td>
                         <td>@v.OwnerName</td>
                         <td>
