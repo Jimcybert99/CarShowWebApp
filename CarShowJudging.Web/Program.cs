@@ -39,13 +39,22 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.AccessDeniedPath = "/access-denied";
 });
 
-builder.Services.AddSingleton(new BlobServiceClient(
-    builder.Configuration["AzureBlobStorage:ConnectionString"]));
+var blobConnectionString = builder.Configuration["AzureBlobStorage:ConnectionString"];
+if (blobConnectionString == "UseDevelopmentStorage=true")
+{
+    var uploadPath = Path.Combine(builder.Environment.WebRootPath, "uploads", "vehicles");
+    builder.Services.AddSingleton<IBlobStorageService>(
+        new LocalFileStorageService(uploadPath, "/uploads/vehicles"));
+}
+else
+{
+    builder.Services.AddSingleton(new BlobServiceClient(blobConnectionString));
+    builder.Services.AddScoped<IBlobStorageService, BlobStorageService>();
+}
 
 builder.Services.AddScoped<IVehicleService, VehicleService>();
 builder.Services.AddScoped<IScoreService, ScoreService>();
 builder.Services.AddScoped<IClassService, ClassService>();
-builder.Services.AddScoped<IBlobStorageService, BlobStorageService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<INoteService, NoteService>();
 

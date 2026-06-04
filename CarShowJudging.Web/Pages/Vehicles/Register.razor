@@ -5,6 +5,7 @@
 @inject INoteService NoteService
 @inject AuthenticationStateProvider AuthStateProvider
 @using Microsoft.AspNetCore.Identity
+@using System.Text
 @inject UserManager<ApplicationUser> UserManager
 
 <PageTitle>Register Vehicle</PageTitle>
@@ -89,9 +90,47 @@
     </div>
 </div>
 
+@* CSV bulk import *@
+<div class="card mt-4" style="max-width:560px">
+    <div class="card-header">Bulk Import via CSV</div>
+    <div class="card-body">
+        <p class="small text-muted mb-2">
+            CSV columns (with header row):
+            <code>Owner Name, Year, Make, Model, Class, Notes</code><br />
+            Class and Notes are optional. Class is matched by name (case-insensitive).
+        </p>
+        <div class="d-flex gap-2 align-items-center">
+            <InputFile class="form-control form-control-sm" OnChange="OnCsvSelected" accept=".csv" />
+            <button class="btn btn-secondary btn-sm text-nowrap"
+                    @onclick="ProcessCsvAsync"
+                    disabled="@(_csvFile is null || _csvProcessing)">
+                @(_csvProcessing ? "Importing…" : "Import")
+            </button>
+        </div>
+
+        @if (_csvResults.Count > 0)
+        {
+            <div class="mt-3 small" style="max-height:200px;overflow-y:auto">
+                <div class="fw-semibold mb-1">
+                    @_csvResults.Count(r => r.Success) succeeded,
+                    @_csvResults.Count(r => !r.Success) failed
+                </div>
+                @foreach (var r in _csvResults)
+                {
+                    <div class="@(r.Success ? "text-success" : "text-danger")">
+                        @(r.Success ? "✓" : "✗") @r.Message
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
 <NotesPanel PageContext="@PageContexts.RegisterVehicle" PageTitle="Register Vehicle" />
 
 @code {
+    private record CsvResult(bool Success, string Message);
+
     private VehicleRegistrationDto _dto = new();
     private List<VehicleClass> _classes = new();
     private HashSet<int> _selectedClassIds = new();
@@ -104,6 +143,10 @@
     private string? _error;
     private string _userId = string.Empty;
     private string _userDisplayName = string.Empty;
+
+    private IBrowserFile? _csvFile;
+    private bool _csvProcessing;
+    private List<CsvResult> _csvResults = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -141,6 +184,11 @@
     }
 
     private void OnPhotoSelected(InputFileChangeEventArgs e) => _photo = e.File;
+    private void OnCsvSelected(InputFileChangeEventArgs e)
+    {
+        _csvFile = e.File;
+        _csvResults = new();
+    }
 
     private async Task SubmitAsync()
     {
@@ -183,5 +231,108 @@
         {
             _saving = false;
         }
+    }
+
+    private async Task ProcessCsvAsync()
+    {
+        if (_csvFile is null || string.IsNullOrEmpty(_userId)) return;
+        _csvProcessing = true;
+        _csvResults = new();
+
+        try
+        {
+            using var reader = new StreamReader(
+                _csvFile.OpenReadStream(maxAllowedSize: 2 * 1024 * 1024));
+            var content = await reader.ReadToEndAsync();
+            var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+            for (var i = 1; i < lines.Length; i++) // skip header row
+            {
+                var line = lines[i].Trim('\r', ' ');
+                if (string.IsNullOrEmpty(line)) continue;
+
+                var cols = ParseCsvLine(line);
+                if (cols.Length < 4)
+                {
+                    _csvResults.Add(new(false, $"Row {i}: needs at least Owner Name, Year, Make, Model"));
+                    continue;
+                }
+
+                try
+                {
+                    var ownerName = cols[0].Trim();
+                    var year = int.TryParse(cols[1].Trim(), out var y) ? y : DateTime.UtcNow.Year;
+                    var make = cols[2].Trim();
+                    var model = cols[3].Trim();
+                    var className = cols.Length > 4 ? cols[4].Trim() : string.Empty;
+                    var note = cols.Length > 5 ? cols[5].Trim() : string.Empty;
+
+                    if (string.IsNullOrWhiteSpace(ownerName) || string.IsNullOrWhiteSpace(make) || string.IsNullOrWhiteSpace(model))
+                    {
+                        _csvResults.Add(new(false, $"Row {i}: Owner Name, Make, and Model are required"));
+                        continue;
+                    }
+
+                    var classIds = new List<int>();
+                    if (!string.IsNullOrEmpty(className))
+                    {
+                        var cls = _classes.FirstOrDefault(c =>
+                            c.Name.Equals(className, StringComparison.OrdinalIgnoreCase));
+                        if (cls is not null)
+                            classIds.Add(cls.Id);
+                    }
+
+                    var dto = new VehicleRegistrationDto
+                    {
+                        OwnerName = ownerName,
+                        Year = year,
+                        Make = make,
+                        Model = model,
+                        SelectedClassIds = classIds,
+                        EntryNumber = 0 // auto-assign
+                    };
+
+                    var vehicle = await VehicleService.RegisterAsync(dto, _userId);
+
+                    if (!string.IsNullOrWhiteSpace(note))
+                        await NoteService.AddAsync(null, vehicle.Id, null,
+                            _userId, _userDisplayName, note, false);
+
+                    _csvResults.Add(new(true,
+                        $"Entry #{vehicle.EntryNumber}: {year} {make} {model} — {ownerName}"));
+                }
+                catch (Exception ex)
+                {
+                    _csvResults.Add(new(false, $"Row {i}: {ex.Message}"));
+                }
+            }
+
+            _csvFile = null;
+            await LoadAvailableNumbersAsync();
+        }
+        catch (Exception ex)
+        {
+            _csvResults.Add(new(false, $"Could not read CSV: {ex.Message}"));
+        }
+        finally
+        {
+            _csvProcessing = false;
+        }
+    }
+
+    private static string[] ParseCsvLine(string line)
+    {
+        var result = new List<string>();
+        var current = new StringBuilder();
+        var inQuotes = false;
+
+        foreach (var c in line)
+        {
+            if (c == '"') { inQuotes = !inQuotes; }
+            else if (c == ',' && !inQuotes) { result.Add(current.ToString()); current.Clear(); }
+            else { current.Append(c); }
+        }
+        result.Add(current.ToString());
+        return result.ToArray();
     }
 }
