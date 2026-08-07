@@ -1,4 +1,3 @@
-using Azure.Storage.Blobs;
 using CarShowJudging.Core.Interfaces;
 using CarShowJudging.Core.Models;
 using CarShowJudging.Infrastructure.Data;
@@ -14,10 +13,7 @@ builder.Services.AddServerSideBlazor();
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
-    if (builder.Environment.IsDevelopment())
-        options.UseSqlite(connectionString);
-    else
-        options.UseSqlServer(connectionString);
+    options.UseSqlite(connectionString);
 });
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -39,18 +35,9 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.AccessDeniedPath = "/access-denied";
 });
 
-var blobConnectionString = builder.Configuration["AzureBlobStorage:ConnectionString"];
-if (blobConnectionString == "UseDevelopmentStorage=true")
-{
-    var uploadPath = Path.Combine(builder.Environment.WebRootPath, "uploads", "vehicles");
-    builder.Services.AddSingleton<IBlobStorageService>(
-        new LocalFileStorageService(uploadPath, "/uploads/vehicles"));
-}
-else
-{
-    builder.Services.AddSingleton(new BlobServiceClient(blobConnectionString));
-    builder.Services.AddScoped<IBlobStorageService, BlobStorageService>();
-}
+var uploadPath = Path.Combine(builder.Environment.WebRootPath, "uploads", "vehicles");
+builder.Services.AddSingleton<IBlobStorageService>(
+    new LocalFileStorageService(uploadPath, "/uploads/vehicles"));
 
 builder.Services.AddScoped<IVehicleService, VehicleService>();
 builder.Services.AddScoped<IScoreService, ScoreService>();
@@ -97,6 +84,14 @@ static async Task SeedAsync(WebApplication app)
 
     if (await userManager.FindByNameAsync("admin") is null)
     {
+        var adminPassword = app.Configuration["Seed:AdminPassword"] ?? "password123";
+        if (!app.Environment.IsDevelopment() && adminPassword == "password123")
+        {
+            throw new InvalidOperationException(
+                "Set Seed:AdminPassword (e.g. via the SEED__ADMINPASSWORD environment variable) " +
+                "to a strong password before running outside Development.");
+        }
+
         var admin = new ApplicationUser
         {
             UserName = "admin",
@@ -104,7 +99,7 @@ static async Task SeedAsync(WebApplication app)
             DisplayName = "Administrator",
             EmailConfirmed = true
         };
-        var result = await userManager.CreateAsync(admin, "password123");
+        var result = await userManager.CreateAsync(admin, adminPassword);
         if (result.Succeeded)
             await userManager.AddToRoleAsync(admin, "Admin");
     }

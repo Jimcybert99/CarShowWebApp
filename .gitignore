@@ -17,6 +17,7 @@ out/
 *.db
 *.db-shm
 *.db-wal
+*.db-journal
 
 ## Local uploaded files
 CarShowJudging.Web/wwwroot/uploads/
