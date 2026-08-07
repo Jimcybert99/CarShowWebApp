@@ -21,4 +21,5 @@ public class VehicleRegistrationDto
     public List<int> SelectedClassIds { get; set; } = new();
     public Stream? PhotoStream { get; set; }
     public string? PhotoFileName { get; set; }
+    public string? RegistrationNote { get; set; }
 }

@@ -42,6 +42,7 @@ public class VehicleService : IVehicleService
             Make = dto.Make,
             Model = dto.Model,
             Year = dto.Year,
+            RegistrationNote = string.IsNullOrWhiteSpace(dto.RegistrationNote) ? null : dto.RegistrationNote.Trim(),
             CreatedAt = DateTimeOffset.UtcNow
         };
 

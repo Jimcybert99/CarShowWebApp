@@ -3,6 +3,7 @@ using System;
 using CarShowJudging.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CarShowJudging.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260807141310_RemoveNotesFeature")]
+    partial class RemoveNotesFeature
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.8");
@@ -123,7 +126,7 @@ namespace CarShowJudging.Infrastructure.Migrations
                     b.HasIndex("VehicleId", "JudgeId")
                         .IsUnique();
 
-                    b.ToTable("Scores", (string)null);
+                    b.ToTable("Scores");
                 });
 
             modelBuilder.Entity("CarShowJudging.Core.Models.Vehicle", b =>
@@ -171,7 +174,7 @@ namespace CarShowJudging.Infrastructure.Migrations
 
                     b.HasIndex("RegisteredById");
 
-                    b.ToTable("Vehicles", (string)null);
+                    b.ToTable("Vehicles");
                 });
 
             modelBuilder.Entity("CarShowJudging.Core.Models.VehicleClass", b =>
@@ -186,7 +189,7 @@ namespace CarShowJudging.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("VehicleClasses", (string)null);
+                    b.ToTable("VehicleClasses");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
@@ -329,7 +332,7 @@ namespace CarShowJudging.Infrastructure.Migrations
 
                     b.HasIndex("VehiclesId");
 
-                    b.ToTable("VehicleVehicleClass", (string)null);
+                    b.ToTable("VehicleVehicleClass");
                 });
 
             modelBuilder.Entity("CarShowJudging.Core.Models.Score", b =>

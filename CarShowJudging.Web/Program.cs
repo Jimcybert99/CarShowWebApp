@@ -56,7 +56,6 @@ builder.Services.AddScoped<IVehicleService, VehicleService>();
 builder.Services.AddScoped<IScoreService, ScoreService>();
 builder.Services.AddScoped<IClassService, ClassService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
-builder.Services.AddScoped<INoteService, NoteService>();
 
 builder.Services.AddHttpContextAccessor();
 

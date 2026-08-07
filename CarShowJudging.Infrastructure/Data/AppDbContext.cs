@@ -11,7 +11,6 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Vehicle> Vehicles => Set<Vehicle>();
     public DbSet<VehicleClass> VehicleClasses => Set<VehicleClass>();
     public DbSet<Score> Scores => Set<Score>();
-    public DbSet<SiteNote> SiteNotes => Set<SiteNote>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -51,20 +50,6 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
                 .OnDelete(DeleteBehavior.Cascade);
 
             e.Ignore(s => s.Overall);
-        });
-
-        builder.Entity<SiteNote>(e =>
-        {
-            e.HasOne(n => n.Parent)
-                .WithMany(n => n.Replies)
-                .HasForeignKey(n => n.ParentNoteId)
-                .OnDelete(DeleteBehavior.NoAction);
-
-            e.HasOne(n => n.Vehicle)
-                .WithMany()
-                .HasForeignKey(n => n.VehicleId)
-                .OnDelete(DeleteBehavior.Cascade)
-                .IsRequired(false);
         });
     }
 }
