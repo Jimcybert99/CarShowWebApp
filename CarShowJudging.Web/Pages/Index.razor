@@ -5,5 +5,12 @@
 
 <div class="text-center py-5">
     <h1 class="display-4"><i class="bi bi-trophy-fill text-warning"></i> Car Show Judging</h1>
-    <p class="lead text-muted">Welcome! Use the navigation above to register a vehicle or judge entries.</p>
+    <AuthorizeView Roles="Judge,Admin">
+        <Authorized>
+            <p class="lead text-muted">Welcome! Use the navigation above to register a vehicle or judge entries.</p>
+        </Authorized>
+        <NotAuthorized>
+            <p class="lead text-muted">Welcome! Use the navigation above to register a vehicle.</p>
+        </NotAuthorized>
+    </AuthorizeView>
 </div>
