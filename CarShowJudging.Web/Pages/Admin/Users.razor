@@ -1,5 +1,6 @@
 @page "/admin/users"
 @attribute [Authorize(Roles = "Admin")]
+@using Microsoft.EntityFrameworkCore
 @inject UserManager<ApplicationUser> UserManager
 @inject AuthenticationStateProvider AuthStateProvider
 
@@ -142,12 +143,22 @@ else
     {
         if (_pendingDelete is null) return;
         _error = null;
-        var result = await UserManager.DeleteAsync(_pendingDelete.User);
-        if (result.Succeeded)
-            await LoadAsync();
-        else
-            _error = string.Join(", ", result.Errors.Select(e => e.Description));
-        _pendingDelete = null;
+        try
+        {
+            var result = await UserManager.DeleteAsync(_pendingDelete.User);
+            if (result.Succeeded)
+                await LoadAsync();
+            else
+                _error = string.Join(", ", result.Errors.Select(e => e.Description));
+        }
+        catch (DbUpdateException)
+        {
+            _error = "Could not delete this user because other records still reference them.";
+        }
+        finally
+        {
+            _pendingDelete = null;
+        }
     }
 
     private record UserRow(ApplicationUser User, List<string> Roles);

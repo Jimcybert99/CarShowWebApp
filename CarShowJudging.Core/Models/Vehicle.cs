@@ -5,7 +5,7 @@ public class Vehicle
     public int Id { get; set; }
     public int EntryNumber { get; set; }
     public string OwnerName { get; set; } = string.Empty;
-    public string RegisteredById { get; set; } = string.Empty;
+    public string? RegisteredById { get; set; }
     public ApplicationUser? RegisteredBy { get; set; }
     public string? OwnerId { get; set; }
     public ApplicationUser? Owner { get; set; }

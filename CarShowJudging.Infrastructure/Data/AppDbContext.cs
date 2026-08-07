@@ -22,7 +22,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.HasOne(v => v.RegisteredBy)
                 .WithMany()
                 .HasForeignKey(v => v.RegisteredById)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.SetNull)
+                .IsRequired(false);
 
             e.HasOne(v => v.Owner)
                 .WithMany()
@@ -47,7 +48,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             e.HasOne(s => s.Judge)
                 .WithMany()
                 .HasForeignKey(s => s.JudgeId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.Cascade);
 
             e.Ignore(s => s.Overall);
         });
