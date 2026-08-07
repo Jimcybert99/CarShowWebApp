@@ -29,8 +29,6 @@ secrets.json
 
 ## Claude Code local files
 .claude/
-PLAN.md
-plantoonline.md
 
 ## OS
 .DS_Store
