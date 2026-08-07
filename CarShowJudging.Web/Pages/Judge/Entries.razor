@@ -28,7 +28,7 @@ else
                     <th style="width:70px">Photo</th>
                     <th>Vehicle</th>
                     <th>Owner</th>
-                    <th>Classes</th>
+                    <th class="d-none d-md-table-cell">Classes</th>
                     <th>Your Score</th>
                     <th></th>
                 </tr>
@@ -50,7 +50,7 @@ else
                         </td>
                         <td>@v.Year @v.Make @v.Model</td>
                         <td>@v.OwnerName</td>
-                        <td>
+                        <td class="d-none d-md-table-cell">
                             @foreach (var c in v.Classes)
                             {
                                 <span class="badge bg-secondary me-1">@c.Name</span>

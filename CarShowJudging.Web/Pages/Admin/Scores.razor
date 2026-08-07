@@ -52,8 +52,8 @@ else
                 <tr>
                     <th style="width:50px">#</th>
                     <th>Vehicle</th>
-                    <th>Owner</th>
-                    <th>Classes</th>
+                    <th class="d-none d-md-table-cell">Owner</th>
+                    <th class="d-none d-md-table-cell">Classes</th>
                     <th class="text-center">Condition</th>
                     <th class="text-center">Paint &amp; Body</th>
                     <th class="text-center">Interior</th>
@@ -76,8 +76,8 @@ else
                                 <span>@row.Year @row.Make @row.Model</span>
                             </div>
                         </td>
-                        <td>@row.OwnerName</td>
-                        <td>
+                        <td class="d-none d-md-table-cell">@row.OwnerName</td>
+                        <td class="d-none d-md-table-cell">
                             @foreach (var c in row.ClassNames)
                             {
                                 <span class="badge bg-secondary me-1">@c</span>
@@ -108,7 +108,8 @@ else
                                 }
                                 else
                                 {
-                                    <table class="table table-sm table-bordered mb-0" style="max-width:700px">
+                                    <div class="table-responsive">
+                                    <table class="table table-sm table-bordered mb-0">
                                         <thead class="table-secondary">
                                             <tr>
                                                 <th>Judge</th>
@@ -137,6 +138,7 @@ else
                                             }
                                         </tbody>
                                     </table>
+                                    </div>
                                 }
                             </td>
                         </tr>
