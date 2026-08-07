@@ -18,6 +18,9 @@ out/
 *.db-shm
 *.db-wal
 
+## Local uploaded files
+CarShowJudging.Web/wwwroot/uploads/
+
 ## Secrets / config overrides
 appsettings.Development.json
 secrets.json

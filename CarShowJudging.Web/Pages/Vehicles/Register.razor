@@ -20,7 +20,9 @@
     <div class="alert alert-danger">@_error</div>
 }
 
-<div class="card" style="max-width:560px">
+<div class="row g-3">
+<div class="col-md-7">
+<div class="card">
     <div class="card-body">
         <EditForm Model="_dto" OnValidSubmit="SubmitAsync">
             <DataAnnotationsValidator />
@@ -89,6 +91,18 @@
         </EditForm>
     </div>
 </div>
+</div>
+<div class="col-md-5">
+@if (_photoPreviewUrl is not null)
+{
+    <div class="card">
+        <div class="card-body text-center">
+            <img src="@_photoPreviewUrl" alt="Vehicle photo preview" class="img-fluid rounded" />
+        </div>
+    </div>
+}
+</div>
+</div>
 
 @* CSV bulk import *@
 <div class="card mt-4" style="max-width:560px">
@@ -136,6 +150,7 @@
     private HashSet<int> _selectedClassIds = new();
     private List<int> _availableNumbers = new();
     private IBrowserFile? _photo;
+    private string? _photoPreviewUrl;
     private string _registrationNote = string.Empty;
     private bool _saving;
     private bool _success;
@@ -183,7 +198,14 @@
         else _selectedClassIds.Remove(id);
     }
 
-    private void OnPhotoSelected(InputFileChangeEventArgs e) => _photo = e.File;
+    private async Task OnPhotoSelected(InputFileChangeEventArgs e)
+    {
+        _photo = e.File;
+        using var stream = _photo.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        _photoPreviewUrl = $"data:{_photo.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}";
+    }
     private void OnCsvSelected(InputFileChangeEventArgs e)
     {
         _csvFile = e.File;
@@ -220,6 +242,7 @@
             _dto = new VehicleRegistrationDto { Year = DateTime.UtcNow.Year };
             _selectedClassIds.Clear();
             _photo = null;
+            _photoPreviewUrl = null;
             _registrationNote = string.Empty;
             await LoadAvailableNumbersAsync();
         }
