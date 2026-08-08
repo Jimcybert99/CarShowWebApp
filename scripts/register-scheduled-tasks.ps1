@@ -11,8 +11,8 @@ function Register-RepeatingTask {
         -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`""
     $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) `
         -RepetitionInterval (New-TimeSpan -Minutes $IntervalMinutes) `
-        -RepetitionDuration ([TimeSpan]::MaxValue)
-    Register-ScheduledTask -TaskName $Name -Action $action -Trigger $trigger -Force | Out-Null
+        -RepetitionDuration (New-TimeSpan -Days 3650)
+    Register-ScheduledTask -TaskName $Name -Action $action -Trigger $trigger -Force -ErrorAction Stop | Out-Null
     Write-Host "Registered $Name (every $IntervalMinutes min)"
 }
 
