@@ -1,0 +1,52 @@
+services:
+  carshowjudging:
+    image: ${IMAGE:-ghcr.io/jimcybert99/carshowwebapp:latest}
+    build:
+      context: .
+      dockerfile: CarShowJudging.Web/Dockerfile
+    restart: unless-stopped
+    environment:
+      SEED__ADMINPASSWORD: ${SEED__ADMINPASSWORD}
+      Smtp__User: ${SMTP_USER:-}
+      Smtp__Password: ${SMTP_PASSWORD:-}
+    volumes:
+      - carshow-data:/data
+      - carshow-uploads:/app/wwwroot/uploads/vehicles
+    expose:
+      - "8080"
+
+  # Plan D (local self-host): Cloudflare Tunnel. No inbound ports, no router
+  # config, works fine behind Starlink's CGNAT since it's outbound-only.
+  # Enable with COMPOSE_PROFILES=cloudflare in .env.
+  cloudflared:
+    profiles: ["cloudflare"]
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - carshowjudging
+
+  # Plan C (VPS): Caddy reverse proxy with automatic Let's Encrypt HTTPS.
+  # Needs 80/443 actually reachable from the internet, so only makes sense
+  # on a real VPS with a public IP. Enable with COMPOSE_PROFILES=vps in .env.
+  caddy:
+    profiles: ["vps"]
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DUCKDNS_SUBDOMAIN: ${DUCKDNS_SUBDOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - carshowjudging
+
+volumes:
+  carshow-data:
+  carshow-uploads:
+  caddy-data:
+  caddy-config:

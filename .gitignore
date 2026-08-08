@@ -26,6 +26,7 @@ CarShowJudging.Web/wwwroot/uploads/
 appsettings.Development.json
 secrets.json
 *.pfx
+.env
 
 ## Claude Code local files
 .claude/

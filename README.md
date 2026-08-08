@@ -12,15 +12,22 @@ This app was dev-only until now. This session did three things to make it deploy
 2. **Fixed a real security bug**: `Program.cs` used to seed an `admin`/`password123` account into whichever database it started against, unconditionally, in every environment — including a real production deploy. It now reads the admin password from configuration (`Seed:AdminPassword` / `SEED__ADMINPASSWORD` env var) and **refuses to start outside Development** if that hasn't been set to something other than the default. See "Common prerequisites" below — this is the one step you cannot skip.
 3. **Mobile-responsiveness pass.** The Bootstrap foundation (viewport meta tag, collapsible nav, `table-responsive` wrappers) was already solid. What was fixed: the widest data tables (`/admin/scores` especially — 11 columns) now hide lower-priority columns (Owner, Classes) below the `md` breakpoint instead of forcing horizontal scroll on a phone; a couple of non-responsive Bootstrap column classes (`col-5` instead of `col-12 col-sm-5`) were corrected; modals got `modal-dialog-centered`; a `theme-color` meta tag was added.
 
+This session also added **Plan C**: Docker + Caddy + GitHub Actions + DuckDNS, for a push-to-deploy setup on a cloud VM. In practice, signing up for a cloud VM hit a wall: Oracle Cloud's Always Free signup rejected the account with an opaque anti-fraud error across multiple payment methods, and Hetzner's plan selector wasn't offering the cheap tier either. The deployment target pivoted to local self-hosting instead — but the *first* version of that plan (DuckDNS + router port-forwarding) hit its own wall: this machine's internet is **Starlink**, whose Standard/Mobile plans put every customer behind CGNAT with a router that flatly does not support port forwarding (confirmed — no reachable public IPv4 or IPv6 on this connection). So **Plan D** now uses **Cloudflare Tunnel** instead: `cloudflared` makes an outbound connection to Cloudflare's edge, so nothing needs to be reachable from the internet and CGNAT is a non-issue. This did mean buying a real domain (Cloudflare Tunnel needs one for a stable hostname), a small step back from the original "no domain" ask, but was the most robust option once port-forwarding was ruled out entirely. The `Dockerfile`, `docker-compose.yml`, `.env.example`, and `.github/workflows/build.yml` are shared by Plans C and D (via Docker Compose profiles — `vps` runs Caddy for Plan C, `cloudflare` runs `cloudflared` for Plan D); `Caddyfile` and `scripts/vm-setup.sh` are Plan C-only; `scripts/poll-deploy.ps1` / `backup.ps1` / `register-scheduled-tasks.ps1` are Plan D-only. Plans A and B need none of this.
+
+### Plan D is live
+
+`https://rutabegacarshow.com` is deployed and verified end-to-end: `docker compose up -d` (app + `cloudflared`, no Caddy) runs on the local Windows machine, the Cloudflare Tunnel route is correctly configured, DNS resolves through Cloudflare's edge, and a real login (`admin` credentials → `.AspNetCore.Identity.Application` cookie) succeeds through the public URL. Volume persistence was verified directly (container destroyed and recreated against the same named volumes, admin account survived). The admin password currently in `.env` is the real one, not a placeholder — treat it as live.
+
+Still outstanding: this repo hasn't been pushed to GitHub yet, so `.github/workflows/build.yml` has never run and the image currently deployed was built locally, not pulled from GHCR. After pushing, the GHCR package needs to be set **Public** (Plan D step 6), and `scripts/register-scheduled-tasks.ps1` still needs to be run to automate future deploys/backups.
+
 ### What's explicitly NOT done yet
 
 - **No real-device testing.** All mobile fixes were verified with browser dev-tools viewport emulation, not an actual phone — the user deploying this can't test on a real device until it's actually live somewhere. Treat the mobile pass as "should work" not "confirmed."
-- **No CI/CD, no Docker/containerization.** Deployment below is manual, step-by-step. This was a deliberate choice (see Part 1 context) — not an oversight.
-- **No HTTPS/TLS wiring in code.** `Program.cs` calls `UseHttpsRedirection()`/`UseHsts()`, but there's no certificate bound anywhere in the repo. Both plans below cover getting a real cert at the infrastructure level.
+- **No HTTPS/TLS wiring in application code.** `Program.cs` calls `UseHttpsRedirection()`/`UseHsts()`, but there's no certificate bound anywhere in the repo — every plan below gets HTTPS at the infrastructure level instead (win-acme, Caddy, or Cloudflare's edge). Behind a reverse proxy that terminates TLS itself, `UseHttpsRedirection()` can't determine an HTTPS port — it just logs a harmless per-request warning, not a real bug, and is safe to ignore.
 - **Password-reset email is a real gotcha, not hypothetical.** `appsettings.json` has `Smtp:Host` set to `smtp.gmail.com` with blank `User`/`Password`. That means it is **not** a silent no-op in production — `EmailService` only falls back to log-only mode when `Smtp:Host` itself is empty, which it isn't. Deploy without setting real `Smtp:User`/`Smtp:Password` and the *first* password-reset request will throw an SMTP auth error. Either set real SMTP credentials (env vars, see below) or accept that "Forgot password" is broken and users needing a reset must be handled manually by an admin.
 - **CDN dependency for Bootstrap/Bootstrap Icons.** Both are loaded from jsdelivr's CDN, not vendored locally. If your hosting environment has flaky/no outbound internet, or the CDN has an outage, the app will render unstyled. Not fixed this pass — flagged as a possible follow-up if it becomes a problem.
 
-## Common prerequisites (both plans)
+## Common prerequisites (all plans)
 
 Whichever plan you follow, do this first:
 
@@ -182,6 +189,131 @@ dotnet publish CarShowJudging.Web -c Release -o ./publish
 scp -r ./publish/* youruser@your-vps-ip:/opt/carshowjudging/
 ssh youruser@your-vps-ip 'sudo systemctl restart carshowjudging'
 ```
+
+---
+
+## Plan C — Docker + GitHub Actions + DuckDNS on a cloud VM
+
+For someone who's never run a server before and wants `git push` to be the entire deploy step afterward, at $0-6/month for about a month. This builds on Plan B's foundation (Linux VM + Caddy for automatic HTTPS) but containerizes the app and automates the deploy with GitHub Actions, instead of manual `dotnet publish`/`scp`.
+
+**Superseded by Plan D for this deployment** — Oracle Cloud's free-tier signup rejected the account (a known, opaque anti-fraud false-positive), and Hetzner's cheap tier wasn't selectable at signup time. Left here in case a cloud VM becomes viable again later (different provider, retrying Oracle, etc.) — the Docker/Caddy files are shared with Plan D either way.
+
+**Why this shape:** SQLite + local-disk photos means the app's entire state is a file and a folder — that rules out most free PaaS tiers (Render/Railway free web services use ephemeral disks that wipe on every redeploy). A real VM with a persistent volume is required.
+
+### 1. Get a VM
+- **Oracle Cloud "Always Free" tier** (try first) — genuinely free forever, no 1-month expiry to track. Sign up, create a Compute instance: Ubuntu 24.04, Ampere A1 (ARM) or VM.Standard.E2.1.Micro shape, upload/generate an SSH key pair during creation, note the public IP.
+- **Fallback**: Hetzner CX22 (~€4/mo) or DigitalOcean Basic Droplet (~$4-6/mo) if Oracle's signup/capacity is a blocker — a few dollars total for a 1-month deployment.
+
+### 2. DNS via DuckDNS (free custom URL, no domain purchase)
+Go to [duckdns.org](https://www.duckdns.org), sign in, create a subdomain (e.g. `carshowjudging`), and point it at the VM's public IP. You'll get `carshowjudging.duckdns.org`. Update the IP there any time the VM's address changes.
+
+### 3. Bootstrap the VM
+SSH in (`ssh ubuntu@<vm-ip>`), copy up `scripts/vm-setup.sh`, and run it:
+```bash
+scp scripts/vm-setup.sh ubuntu@<vm-ip>:~
+ssh ubuntu@<vm-ip> 'bash vm-setup.sh'
+```
+This installs Docker, sets up `ufw` (only 22/80/443 open), enables `unattended-upgrades`, creates `/opt/carshowjudging`, and installs a daily backup cron job (tars the DB + uploads volumes to `/opt/carshowjudging/backups`, keeps 14 days).
+
+### 4. Ship the compose files and secrets to the VM
+From your dev machine:
+```bash
+scp docker-compose.yml Caddyfile ubuntu@<vm-ip>:/opt/carshowjudging/
+```
+On the VM, create `/opt/carshowjudging/.env` (copy `.env.example` as a template — **never commit the real `.env`**):
+```
+DUCKDNS_SUBDOMAIN=carshowjudging
+SEED__ADMINPASSWORD=<a real password, not password123>
+SMTP_USER=
+SMTP_PASSWORD=
+IMAGE=ghcr.io/jimcybert99/carshowwebapp:latest
+```
+Then bring it up once manually to confirm it works:
+```bash
+cd /opt/carshowjudging && docker compose up -d
+```
+
+### 5. Wire up GitHub Actions for push-to-deploy
+`.github/workflows/deploy.yml` already exists in this repo: on push to `main` it builds the Docker image, pushes to `ghcr.io/jimcybert99/carshowwebapp`, then SSHes into the VM and runs `docker compose pull && docker compose up -d`. Add these repo secrets (Settings → Secrets and variables → Actions):
+- `VM_HOST` — the VM's public IP
+- `VM_USER` — e.g. `ubuntu`
+- `VM_SSH_KEY` — the **private** key matching a public key already in the VM's `~/.ssh/authorized_keys` (generate a dedicated deploy key pair, don't reuse your personal one)
+
+No `GHCR` login secret is needed — the workflow uses the automatically-provided `GITHUB_TOKEN`. The image is public to your GitHub account by default; the VM doesn't need to authenticate to pull it unless you make the package private.
+
+After this, every `git push` to `main` rebuilds and redeploys automatically — no manual steps.
+
+### 6. Firewall, patching, and backups
+Already handled by `scripts/vm-setup.sh` in step 3 above (`ufw`, `unattended-upgrades`, daily backup cron). If this deployment outlives its ~1-month lifespan, the one manual follow-up worth adding is copying `/opt/carshowjudging/backups` off-box (the cron job only keeps local, on-VM backups).
+
+### Verifying it worked
+- `docker compose up` locally (repo root) to confirm the image builds and the app starts (needs a local `.env` — copy `.env.example`).
+- Restart the containers and confirm the SQLite data and an uploaded vehicle photo both survive — proves the volume mounts are correct.
+- Push a trivial commit to `main` and watch the Actions tab: build → push to GHCR → SSH deploy should all go green.
+- Visit `https://<subdomain>.duckdns.org` and confirm a valid Let's Encrypt padlock (Caddy handles this automatically) and that login/registration/scoring work end-to-end.
+- Check `/opt/carshowjudging/backups` on the VM the next day for a dated tarball.
+
+---
+
+## Plan D — Local self-host (Docker Desktop) via Cloudflare Tunnel
+
+For running this on a home Windows machine instead of a rented VM. This is the path actually being followed for this deployment, after Oracle Cloud's signup rejected the account, Hetzner's cheap tier wasn't selectable, and — the real forcing factor — the home internet connection turned out to be **Starlink**, whose Standard/Mobile plans put every customer behind CGNAT with a router that doesn't support port forwarding at all (confirmed: no reachable public IPv4 *or* IPv6 from this connection). DuckDNS + router port-forwarding, the original idea for Plan D, is not possible here — it's not a matter of router config, Starlink's own router rejects the concept entirely on these plans.
+
+**Why Cloudflare Tunnel instead**: `cloudflared` (running as a container in this repo's `docker-compose.yml`) makes an *outbound* connection from this machine to Cloudflare's edge and keeps it open — Cloudflare routes public HTTPS traffic for your domain down that same connection. Nothing needs to be reachable *from* the internet *to* this machine, so CGNAT is irrelevant, there's no router config, no port-forwarding, no dynamic-DNS updater needed (IP changes don't matter — the tunnel just reconnects), and no inbound firewall rules. It replaces both Caddy and DuckDNS from the original Plan D design. Caddy is still in this repo (behind a Docker Compose `profiles: ["vps"]` flag) for Plan C if a real VPS is ever used instead.
+
+**Key difference from Plan C**: same as before — no SSH exposed on the home network, so no push-to-deploy from GitHub Actions. `.github/workflows/build.yml` builds and pushes the image to GHCR, and a Scheduled Task on this machine (`scripts/poll-deploy.ps1`) periodically pulls a new one.
+
+### 1. Install Docker Desktop
+Docker Desktop on Windows needs WSL2 as its backend.
+```powershell
+wsl --install   # run as Administrator; reboot when it tells you to
+```
+After rebooting, install Docker Desktop from docker.com/products/docker-desktop, using the WSL2 backend (default). Once installed, open **Settings → General** and confirm **"Start Docker Desktop when you log in"** is on — combined with this repo's `restart: unless-stopped` policy, that's what makes the app come back up automatically after a reboot.
+
+### 2. Buy a cheap domain
+Cloudflare Tunnel needs a real domain in a Cloudflare account (a *stable* hostname isn't possible without one — Cloudflare's free "quick tunnels" generate a new random URL every restart). Buy one from a normal registrar — **Porkbun** (porkbun.com) is a good pick, plain `.com` names run about $10-11/year with no bait-and-switch renewal pricing. Cloudflare Registrar itself is cheaper but only handles transfers of domains you already own elsewhere, not new registrations, so it's not the first stop.
+
+### 3. Add the domain to Cloudflare and delegate DNS
+1. Sign up for a free account at cloudflare.com.
+2. **Add a site** → enter your new domain → choose the **Free** plan.
+3. Cloudflare scans for existing DNS records (there won't be any yet) and gives you **two nameservers** (e.g. `xxx.ns.cloudflare.com`).
+4. Log into Porkbun, find the domain's **NS (nameserver)** settings, and replace the default ones with the two Cloudflare gave you.
+5. Wait for Cloudflare to detect the change (usually well under an hour) — it'll email you and the dashboard will show the site as **Active**.
+
+### 4. Create the Tunnel
+Cloudflare's dashboard layout for this changes periodically — as of this writing, Tunnels moved out of the separate Zero Trust dashboard into the regular per-site one:
+1. In the Cloudflare dashboard, select your domain, then in the left sidebar find **Networking → Tunnels** (not Zero Trust — that menu was retired for this).
+2. **Create a tunnel** → choose **Cloudflared** as the connector type → name it (e.g. `carshowjudging`) → **Save tunnel**.
+3. On the next screen ("Install and run a connector"), ignore the OS-specific install commands — copy just the **token** (the long string after `--token` in the example command). That goes in `.env` as `CLOUDFLARE_TUNNEL_TOKEN`.
+4. Go to the **Routes** tab (this replaced what used to be called "Public Hostname") → add a route: pick your domain, leave the subdomain blank (or use `www`), and for **Service URL** enter the full URL including scheme in one field: `http://carshowjudging:8080` (the app container's name and port on the Docker network — Cloudflare terminates HTTPS for you, plain HTTP to the origin is correct here). Save.
+
+**Known gotcha**: when Cloudflare first scans a newly-added domain, it often imports the registrar's existing DNS records (parking-page A records, `www` CNAME, MX/TXT for email forwarding) into the new zone automatically. If those still exist after adding the Tunnel route, the app will be unreachable and Cloudflare returns an **error 525** (SSL handshake failed) — because the proxied hostname is still pointing at the registrar's parking server, not the Tunnel. Fix: go to **DNS → Records**, delete any leftover **A** record(s) for the bare domain that point somewhere other than the Tunnel, then reopen and re-save the Tunnel's route so Cloudflare creates the correct record. The `www` CNAME / MX / TXT records (if they're your registrar's email-forwarding setup) are unrelated and safe to leave.
+
+**Also expect a real propagation wait after switching nameservers.** Google's (`8.8.8.8`) and Cloudflare's (`1.1.1.1`) public resolvers tend to pick up the change within minutes, but many ISP and mobile-carrier DNS resolvers cache nameserver delegation for up to 24-48 hours before re-checking. Verify the deployment against a fast public resolver first (or `curl --resolve` straight to Cloudflare's IP) rather than assuming it's broken just because your own phone/laptop still shows the registrar's old parking page.
+
+### 5. Configure `.env`
+Copy `.env.example` to `.env` in the repo root (already gitignored). Set `CLOUDFLARE_TUNNEL_TOKEN` (from step 4) and `SEED__ADMINPASSWORD` at minimum. Leave `COMPOSE_PROFILES=cloudflare` as-is.
+
+### 6. Make the GHCR image pullable
+`docker compose pull` on this machine runs without any registry login, so the GHCR package needs to be public. After the first push from `build.yml`, go to your GitHub profile → **Packages** → the `carshowwebapp` package → **Package settings** → **Change visibility** → **Public**.
+
+### 7. First run, then automate it
+```powershell
+docker compose up -d
+```
+This starts the app and `cloudflared` (the `cloudflare` profile from `.env`) — no Caddy, no exposed ports. Confirm it's reachable at `https://yourdomain.com`. Once that works, register the recurring tasks so nothing needs to be run by hand again:
+```powershell
+.\scripts\register-scheduled-tasks.ps1
+```
+This sets up two Windows Scheduled Tasks: `CarShowJudging-PollDeploy` (every 15 min, pulls new images from GHCR and restarts if changed) and `CarShowJudging-Backup` (daily, tars the DB + uploads volumes into `.\backups`, pruned after 14 days).
+
+### Verifying it worked
+- `docker compose up -d` succeeds and `https://yourdomain.com` loads with a valid HTTPS padlock (Cloudflare-issued, not Let's Encrypt, but just as real).
+- Restart the containers (`docker compose restart`) and confirm the SQLite data and an uploaded vehicle photo both survive.
+- Push a trivial commit to `main`, watch the `build.yml` Action go green, then manually run `.\scripts\poll-deploy.ps1` and confirm it detects and pulls the new image (or just wait 15 minutes for the Scheduled Task).
+- Manually run `.\scripts\backup.ps1` and confirm a dated `.tar.gz` appears in `.\backups`.
+- From a phone on cellular data (not your home WiFi), visit the domain to confirm it's actually reachable from outside your network.
+- Unplug/reconnect the internet connection (or just wait for the IP to naturally change) and confirm the site is still reachable a few minutes later without touching any config — this is the whole point of using a tunnel instead of port-forwarding.
 
 ---
 

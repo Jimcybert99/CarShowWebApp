@@ -37,7 +37,7 @@ Three-project layered architecture targeting **net10.0**:
 - `Score.Overall` and `JudgeScoreDto.Overall` are computed properties ignored by EF
 - `Vehicle` ↔ `VehicleClass` is many-to-many via the `VehicleVehicleClass` join table (EF implicit)
 
-In **Development**, SQLite is used (`carshow.db` in the Web project directory, gitignored). In production, SQL Server is used. The connection string in `appsettings.json` points to `(localdb)` by default; override via `appsettings.Development.json` or environment variables.
+SQLite is used in all environments (`carshow.db` in the Web project directory by default, gitignored). The connection string in `appsettings.json` points there by default; override via `appsettings.Development.json` or the `ConnectionStrings__DefaultConnection` environment variable to point elsewhere (e.g. a mounted volume in a container deployment).
 
 ### Services
 
