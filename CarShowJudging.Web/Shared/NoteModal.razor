@@ -1,0 +1,34 @@
+@if (_visible && _vehicle is not null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-journal-text me-2"></i>Entry #@_vehicle.EntryNumber — @_vehicle.Year @_vehicle.Make @_vehicle.Model
+                    </h5>
+                </div>
+                <div class="modal-body">
+                    <p style="white-space:pre-wrap">@_vehicle.RegistrationNote</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="Close">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _visible;
+    private Vehicle? _vehicle;
+
+    public void Show(Vehicle vehicle)
+    {
+        _vehicle = vehicle;
+        _visible = true;
+        StateHasChanged();
+    }
+
+    private void Close() => _visible = false;
+}

@@ -14,12 +14,14 @@ public class ForgotPasswordModel : PageModel
     private readonly UserManager<ApplicationUser> _users;
     private readonly IEmailService _email;
     private readonly IConfiguration _config;
+    private readonly ILogger<ForgotPasswordModel> _logger;
 
-    public ForgotPasswordModel(UserManager<ApplicationUser> users, IEmailService email, IConfiguration config)
+    public ForgotPasswordModel(UserManager<ApplicationUser> users, IEmailService email, IConfiguration config, ILogger<ForgotPasswordModel> logger)
     {
         _users = users;
         _email = email;
         _config = config;
+        _logger = logger;
     }
 
     [BindProperty]
@@ -61,8 +63,18 @@ public class ForgotPasswordModel : PageModel
                 <p>If you did not request this, you can ignore this email.</p>
                 """;
 
-            await _email.SendAsync(user.Email, "Car Show Judging — Password Reset", body);
-            EmailSent = true;
+            try
+            {
+                await _email.SendAsync(user.Email!, "Car Show Judging — Password Reset", body);
+                EmailSent = true;
+            }
+            catch (Exception ex)
+            {
+                // SMTP configured but broken (e.g. missing credentials) — degrade to the same
+                // on-screen fallback used when SMTP isn't configured at all, instead of a 500.
+                _logger.LogWarning(ex, "Password reset email failed to send to {Email}", user.Email);
+                ResetUrl = resetUrl;
+            }
         }
         else
         {

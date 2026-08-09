@@ -1,5 +1,5 @@
 @page "/admin/scores"
-@attribute [Authorize(Roles = "Admin,Judge")]
+@attribute [Authorize(Roles = "Admin,SuperUser,Judge")]
 @inject IScoreService ScoreService
 @inject IClassService ClassService
 @inject IVehicleService VehicleService
@@ -27,11 +27,11 @@
         <label class="form-label mb-1 small fw-semibold">Sort by</label>
         <select class="form-select form-select-sm" @onchange="OnSortChanged">
             <option value="">Overall Score</option>
-            <option value="Condition">Condition</option>
-            <option value="PaintAndBody">Paint &amp; Body</option>
-            <option value="Interior">Interior</option>
-            <option value="ShowAppeal">Show Appeal</option>
-            <option value="SuperCoolnessFactor">Super Coolness Factor</option>
+            <option value="Exterior">Exterior (30%)</option>
+            <option value="Interior">Interior (20%)</option>
+            <option value="EngineBay">Engine Bay (15%)</option>
+            <option value="Craftsmanship">Craftsmanship (20%)</option>
+            <option value="Presentation">Presentation (15%)</option>
         </select>
     </div>
 </div>
@@ -54,11 +54,11 @@ else
                     <th>Vehicle</th>
                     <th class="d-none d-md-table-cell">Owner</th>
                     <th class="d-none d-md-table-cell">Classes</th>
-                    <th class="text-center">Condition</th>
-                    <th class="text-center">Paint &amp; Body</th>
-                    <th class="text-center">Interior</th>
-                    <th class="text-center">Show Appeal</th>
-                    <th class="text-center">Super Coolness</th>
+                    <th class="text-center">Exterior (30%)</th>
+                    <th class="text-center">Interior (20%)</th>
+                    <th class="text-center">Engine Bay (15%)</th>
+                    <th class="text-center">Craftsmanship (20%)</th>
+                    <th class="text-center">Presentation (15%)</th>
                     <th class="text-center">Overall</th>
                     <th></th>
                 </tr>
@@ -83,11 +83,11 @@ else
                                 <span class="badge bg-secondary me-1">@c</span>
                             }
                         </td>
-                        <td class="text-center">@FormatScore(row.AvgCondition)</td>
-                        <td class="text-center">@FormatScore(row.AvgPaintAndBody)</td>
+                        <td class="text-center">@FormatScore(row.AvgExterior)</td>
                         <td class="text-center">@FormatScore(row.AvgInterior)</td>
-                        <td class="text-center">@FormatScore(row.AvgShowAppeal)</td>
-                        <td class="text-center">@FormatScore(row.AvgSuperCoolnessFactor)</td>
+                        <td class="text-center">@FormatScore(row.AvgEngineBay)</td>
+                        <td class="text-center">@FormatScore(row.AvgCraftsmanship)</td>
+                        <td class="text-center">@FormatScore(row.AvgPresentation)</td>
                         <td class="text-center fw-bold @(row.OverallScore.HasValue ? "text-success" : "text-muted")">
                             @FormatScore(row.OverallScore)
                         </td>
@@ -113,11 +113,11 @@ else
                                         <thead class="table-secondary">
                                             <tr>
                                                 <th>Judge</th>
-                                                <th class="text-center">Condition</th>
-                                                <th class="text-center">Paint &amp; Body</th>
-                                                <th class="text-center">Interior</th>
-                                                <th class="text-center">Show Appeal</th>
-                                                <th class="text-center">Super Coolness</th>
+                                                <th class="text-center">Exterior (30%)</th>
+                                                <th class="text-center">Interior (20%)</th>
+                                                <th class="text-center">Engine Bay (15%)</th>
+                                                <th class="text-center">Craftsmanship (20%)</th>
+                                                <th class="text-center">Presentation (15%)</th>
                                                 <th class="text-center">Overall</th>
                                                 <th>Scored</th>
                                             </tr>
@@ -127,11 +127,11 @@ else
                                             {
                                                 <tr>
                                                     <td>@js.JudgeName</td>
-                                                    <td class="text-center">@js.Condition</td>
-                                                    <td class="text-center">@js.PaintAndBody</td>
+                                                    <td class="text-center">@js.Exterior</td>
                                                     <td class="text-center">@js.Interior</td>
-                                                    <td class="text-center">@js.ShowAppeal</td>
-                                                    <td class="text-center">@js.SuperCoolnessFactor</td>
+                                                    <td class="text-center">@js.EngineBay</td>
+                                                    <td class="text-center">@js.Craftsmanship</td>
+                                                    <td class="text-center">@js.Presentation</td>
                                                     <td class="text-center fw-bold">@js.Overall.ToString("F1")</td>
                                                     <td class="small text-muted">@js.ScoredAt.LocalDateTime.ToString("g")</td>
                                                 </tr>
@@ -170,7 +170,9 @@ else
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = await UserManager.GetUserAsync(auth.User);
         _userId = user?.Id;
-        _userRole = auth.User.IsInRole("Admin") ? "Admin" : "Judge";
+        _userRole = auth.User.IsInRole("Admin") ? "Admin"
+            : auth.User.IsInRole("SuperUser") ? "SuperUser"
+            : "Judge";
         _classes = await ClassService.GetAllAsync();
         await LoadAsync();
     }

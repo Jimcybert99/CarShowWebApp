@@ -72,7 +72,7 @@ Shared components in `Shared/`: `NavMenu`, `MainLayout`, `ConfirmDialog` (reusab
 
 ### Scoring model
 
-Five criteria per judge score: **Condition**, **PaintAndBody**, **Interior**, **ShowAppeal**, **SuperCoolnessFactor** — all equally weighted. `Overall` = sum / 5. Scores are validated as 1–10 in component code (`ValidateScores()` in `Judge/Score.razor`) — there is no DB-level constraint enforcing this range.
+Five criteria per judge score, weighted (see `CarShowJudging.Core/Constants/ScoreWeights.cs`): **Exterior** (30%), **Interior** (20%), **EngineBay** (15%), **Craftsmanship** (20%), **Presentation** (15%). `Overall` is the weighted sum. Scores are validated as 1–10 in component code (`ValidateScores()` in `Judge/Score.razor`) — there is no DB-level constraint enforcing this range.
 
 ### Azure Blob Storage
 

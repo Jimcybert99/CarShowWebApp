@@ -1,5 +1,5 @@
 @page "/judge/entries/{VehicleId:int}/score"
-@attribute [Authorize(Roles = "Judge,Admin")]
+@attribute [Authorize(Roles = "Judge,Admin,SuperUser")]
 @inject IVehicleService VehicleService
 @inject IScoreService ScoreService
 @inject AuthenticationStateProvider AuthStateProvider
@@ -38,11 +38,11 @@ else
     <div class="card" style="max-width:480px">
         <div class="card-body">
             <h5 class="card-title">Score Each Criteria (1–10)</h5>
-            <CriteriaInput Label="Condition" @bind-Value="_dto.Condition" />
-            <CriteriaInput Label="Paint &amp; Body" @bind-Value="_dto.PaintAndBody" />
-            <CriteriaInput Label="Interior" @bind-Value="_dto.Interior" />
-            <CriteriaInput Label="Show Appeal" @bind-Value="_dto.ShowAppeal" />
-            <CriteriaInput Label="Super Coolness Factor" @bind-Value="_dto.SuperCoolnessFactor" />
+            <CriteriaInput Label="Exterior (30%)" @bind-Value="_dto.Exterior" />
+            <CriteriaInput Label="Interior (20%)" @bind-Value="_dto.Interior" />
+            <CriteriaInput Label="Engine/Engine Bay (15%)" @bind-Value="_dto.EngineBay" />
+            <CriteriaInput Label="Craftsmanship &amp; Details (20%)" @bind-Value="_dto.Craftsmanship" />
+            <CriteriaInput Label="Overall Presentation (15%)" @bind-Value="_dto.Presentation" />
 
             <div class="mt-4 d-flex gap-2">
                 <button class="btn btn-primary" @onclick="SubmitAsync" disabled="@_saving">
@@ -84,11 +84,11 @@ else
             var existing = await ScoreService.GetByVehicleAndJudgeAsync(VehicleId, _judgeId);
             if (existing is not null)
             {
-                _dto.Condition = existing.Condition;
-                _dto.PaintAndBody = existing.PaintAndBody;
+                _dto.Exterior = existing.Exterior;
                 _dto.Interior = existing.Interior;
-                _dto.ShowAppeal = existing.ShowAppeal;
-                _dto.SuperCoolnessFactor = existing.SuperCoolnessFactor;
+                _dto.EngineBay = existing.EngineBay;
+                _dto.Craftsmanship = existing.Craftsmanship;
+                _dto.Presentation = existing.Presentation;
             }
         }
     }
@@ -115,7 +115,7 @@ else
 
     private bool ValidateScores()
     {
-        var values = new[] { _dto.Condition, _dto.PaintAndBody, _dto.Interior, _dto.ShowAppeal, _dto.SuperCoolnessFactor };
+        var values = new[] { _dto.Exterior, _dto.Interior, _dto.EngineBay, _dto.Craftsmanship, _dto.Presentation };
         if (values.Any(v => v < 1 || v > 10))
         {
             _error = "All scores must be between 1 and 10.";

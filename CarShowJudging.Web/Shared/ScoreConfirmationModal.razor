@@ -13,11 +13,11 @@
                     <p class="text-muted small">Owner: @_vehicle.OwnerName</p>
                     <table class="table table-sm table-bordered mt-3">
                         <tbody>
-                            <tr><th>Condition</th><td>@_score.Condition / 10</td></tr>
-                            <tr><th>Paint &amp; Body</th><td>@_score.PaintAndBody / 10</td></tr>
-                            <tr><th>Interior</th><td>@_score.Interior / 10</td></tr>
-                            <tr><th>Show Appeal</th><td>@_score.ShowAppeal / 10</td></tr>
-                            <tr><th>Super Coolness Factor</th><td>@_score.SuperCoolnessFactor / 10</td></tr>
+                            <tr><th>Exterior (30%)</th><td>@_score.Exterior / 10</td></tr>
+                            <tr><th>Interior (20%)</th><td>@_score.Interior / 10</td></tr>
+                            <tr><th>Engine/Engine Bay (15%)</th><td>@_score.EngineBay / 10</td></tr>
+                            <tr><th>Craftsmanship &amp; Details (20%)</th><td>@_score.Craftsmanship / 10</td></tr>
+                            <tr><th>Overall Presentation (15%)</th><td>@_score.Presentation / 10</td></tr>
                             <tr class="table-dark fw-bold"><th>Overall</th><td>@_score.Overall.ToString("F1") / 10</td></tr>
                         </tbody>
                     </table>

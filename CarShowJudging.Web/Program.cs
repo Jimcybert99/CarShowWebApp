@@ -29,7 +29,8 @@ if (Directory.Exists("/data"))
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
-    options.UseSqlite(connectionString);
+    options.UseSqlite(connectionString)
+        .AddInterceptors(new SqlitePragmaInterceptor());
 });
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -117,7 +118,7 @@ static async Task SeedAsync(WebApplication app)
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
-    foreach (var role in new[] { "Admin", "Judge", "User" })
+    foreach (var role in new[] { "Admin", "Judge", "User", "SuperUser" })
     {
         if (!await roleManager.RoleExistsAsync(role))
             await roleManager.CreateAsync(new IdentityRole(role));

@@ -19,11 +19,11 @@ public class ScoreService : IScoreService
 
         if (existing is not null)
         {
-            existing.Condition = dto.Condition;
-            existing.PaintAndBody = dto.PaintAndBody;
+            existing.Exterior = dto.Exterior;
             existing.Interior = dto.Interior;
-            existing.ShowAppeal = dto.ShowAppeal;
-            existing.SuperCoolnessFactor = dto.SuperCoolnessFactor;
+            existing.EngineBay = dto.EngineBay;
+            existing.Craftsmanship = dto.Craftsmanship;
+            existing.Presentation = dto.Presentation;
             existing.ScoredAt = DateTimeOffset.UtcNow;
             await _db.SaveChangesAsync();
             return existing;
@@ -33,18 +33,41 @@ public class ScoreService : IScoreService
         {
             VehicleId = dto.VehicleId,
             JudgeId = dto.JudgeId,
-            Condition = dto.Condition,
-            PaintAndBody = dto.PaintAndBody,
+            Exterior = dto.Exterior,
             Interior = dto.Interior,
-            ShowAppeal = dto.ShowAppeal,
-            SuperCoolnessFactor = dto.SuperCoolnessFactor,
+            EngineBay = dto.EngineBay,
+            Craftsmanship = dto.Craftsmanship,
+            Presentation = dto.Presentation,
             ScoredAt = DateTimeOffset.UtcNow
         };
 
         _db.Scores.Add(score);
-        await _db.SaveChangesAsync();
-        return score;
+        try
+        {
+            await _db.SaveChangesAsync();
+            return score;
+        }
+        catch (DbUpdateException ex) when (IsScoreConflict(ex))
+        {
+            // A concurrent submission from the same judge for the same vehicle (e.g. a double
+            // click) won the race and inserted first — fall back to updating that row instead.
+            _db.Entry(score).State = EntityState.Detached;
+            var winner = await _db.Scores
+                .FirstAsync(s => s.VehicleId == dto.VehicleId && s.JudgeId == dto.JudgeId);
+            winner.Exterior = dto.Exterior;
+            winner.Interior = dto.Interior;
+            winner.EngineBay = dto.EngineBay;
+            winner.Craftsmanship = dto.Craftsmanship;
+            winner.Presentation = dto.Presentation;
+            winner.ScoredAt = DateTimeOffset.UtcNow;
+            await _db.SaveChangesAsync();
+            return winner;
+        }
     }
+
+    private static bool IsScoreConflict(DbUpdateException ex) =>
+        ex.InnerException?.Message.Contains("UNIQUE constraint failed", StringComparison.OrdinalIgnoreCase) == true
+        && ex.InnerException.Message.Contains("Scores.VehicleId", StringComparison.OrdinalIgnoreCase);
 
     public Task<Score?> GetByVehicleAndJudgeAsync(int vehicleId, string judgeId) =>
         _db.Scores.FirstOrDefaultAsync(s => s.VehicleId == vehicleId && s.JudgeId == judgeId);
@@ -84,22 +107,22 @@ public class ScoreService : IScoreService
                 JudgeScores = scores.Select(s => new JudgeScoreDto
                 {
                     JudgeName = s.Judge?.DisplayName ?? s.Judge?.UserName ?? "Judge",
-                    Condition = s.Condition,
-                    PaintAndBody = s.PaintAndBody,
+                    Exterior = s.Exterior,
                     Interior = s.Interior,
-                    ShowAppeal = s.ShowAppeal,
-                    SuperCoolnessFactor = s.SuperCoolnessFactor,
+                    EngineBay = s.EngineBay,
+                    Craftsmanship = s.Craftsmanship,
+                    Presentation = s.Presentation,
                     ScoredAt = s.ScoredAt
                 }).ToList()
             };
 
             if (scores.Count > 0)
             {
-                row.AvgCondition = scores.Average(s => s.Condition);
-                row.AvgPaintAndBody = scores.Average(s => s.PaintAndBody);
+                row.AvgExterior = scores.Average(s => s.Exterior);
                 row.AvgInterior = scores.Average(s => s.Interior);
-                row.AvgShowAppeal = scores.Average(s => s.ShowAppeal);
-                row.AvgSuperCoolnessFactor = scores.Average(s => s.SuperCoolnessFactor);
+                row.AvgEngineBay = scores.Average(s => s.EngineBay);
+                row.AvgCraftsmanship = scores.Average(s => s.Craftsmanship);
+                row.AvgPresentation = scores.Average(s => s.Presentation);
                 row.OverallScore = scores.Average(s => s.Overall);
             }
 
@@ -108,11 +131,11 @@ public class ScoreService : IScoreService
 
         rows = sortBy switch
         {
-            "Condition" => rows.OrderByDescending(r => r.AvgCondition ?? -1).ToList(),
-            "PaintAndBody" => rows.OrderByDescending(r => r.AvgPaintAndBody ?? -1).ToList(),
+            "Exterior" => rows.OrderByDescending(r => r.AvgExterior ?? -1).ToList(),
             "Interior" => rows.OrderByDescending(r => r.AvgInterior ?? -1).ToList(),
-            "ShowAppeal" => rows.OrderByDescending(r => r.AvgShowAppeal ?? -1).ToList(),
-            "SuperCoolnessFactor" => rows.OrderByDescending(r => r.AvgSuperCoolnessFactor ?? -1).ToList(),
+            "EngineBay" => rows.OrderByDescending(r => r.AvgEngineBay ?? -1).ToList(),
+            "Craftsmanship" => rows.OrderByDescending(r => r.AvgCraftsmanship ?? -1).ToList(),
+            "Presentation" => rows.OrderByDescending(r => r.AvgPresentation ?? -1).ToList(),
             _ => rows.OrderByDescending(r => r.OverallScore ?? -1).ToList()
         };
 

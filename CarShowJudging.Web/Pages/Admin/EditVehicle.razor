@@ -1,0 +1,179 @@
+@page "/admin/vehicles/{Id:int}/edit"
+@attribute [Authorize(Roles = "Admin,SuperUser")]
+@inject IVehicleService VehicleService
+@inject IClassService ClassService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit Vehicle</PageTitle>
+<h2>Edit Vehicle</h2>
+
+@if (_notFound)
+{
+    <div class="alert alert-danger">Vehicle not found.</div>
+}
+else if (_dto is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger">@_error</div>
+    }
+
+    <div class="row g-3">
+    <div class="col-md-7">
+    <div class="card">
+        <div class="card-body">
+            <EditForm Model="_dto" OnValidSubmit="SubmitAsync">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="text-danger" />
+
+                <div class="mb-3">
+                    <label class="form-label">Owner Name</label>
+                    <InputText class="form-control" @bind-Value="_dto.OwnerName" />
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-12 col-sm-5">
+                        <label class="form-label">Year</label>
+                        <InputNumber class="form-control" @bind-Value="_dto.Year" />
+                    </div>
+                    <div class="col-12 col-sm-7">
+                        <label class="form-label">Make</label>
+                        <InputText class="form-control" @bind-Value="_dto.Make" />
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Model</label>
+                    <InputText class="form-control" @bind-Value="_dto.Model" />
+                </div>
+
+                @if (_classes.Count > 0)
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Classes <span class="text-muted small">(optional, select multiple)</span></label>
+                        @foreach (var cls in _classes)
+                        {
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="cls_@cls.Id"
+                                       checked="@_selectedClassIds.Contains(cls.Id)"
+                                       @onchange="e => ToggleClass(cls.Id, (bool)e.Value!)" />
+                                <label class="form-check-label" for="cls_@cls.Id">@cls.Name</label>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <div class="mb-3">
+                    <label class="form-label">Vehicle Photo <span class="text-muted small">(leave blank to keep existing photo)</span></label>
+                    <InputFile class="form-control" OnChange="OnPhotoSelected" accept="image/*" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Registration Note <span class="text-muted small">(optional)</span></label>
+                    <textarea class="form-control" rows="2" maxlength="1000"
+                              placeholder="Condition notes, special details, observations…"
+                              @bind="_dto.RegistrationNote" @bind:event="oninput"></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-primary" disabled="@_saving">
+                    @(_saving ? "Saving…" : "Save Changes")
+                </button>
+                <a class="btn btn-outline-secondary" href="/admin/entries">Cancel</a>
+            </EditForm>
+        </div>
+    </div>
+    </div>
+    <div class="col-md-5">
+    @if (_photoPreviewUrl is not null)
+    {
+        <div class="card">
+            <div class="card-body text-center">
+                <img src="@_photoPreviewUrl" alt="Vehicle photo preview" class="img-fluid rounded" />
+            </div>
+        </div>
+    }
+    </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private VehicleUpdateDto? _dto;
+    private List<VehicleClass> _classes = new();
+    private HashSet<int> _selectedClassIds = new();
+    private IBrowserFile? _photo;
+    private string? _photoPreviewUrl;
+    private bool _saving;
+    private bool _notFound;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _classes = await ClassService.GetAllAsync();
+
+        var vehicle = await VehicleService.GetByIdAsync(Id);
+        if (vehicle is null)
+        {
+            _notFound = true;
+            return;
+        }
+
+        _dto = new VehicleUpdateDto
+        {
+            EntryNumber = vehicle.EntryNumber,
+            OwnerName = vehicle.OwnerName,
+            Make = vehicle.Make,
+            Model = vehicle.Model,
+            Year = vehicle.Year,
+            RegistrationNote = vehicle.RegistrationNote
+        };
+        _selectedClassIds = vehicle.Classes.Select(c => c.Id).ToHashSet();
+        _photoPreviewUrl = vehicle.PhotoUrl;
+    }
+
+    private void ToggleClass(int id, bool selected)
+    {
+        if (selected) _selectedClassIds.Add(id);
+        else _selectedClassIds.Remove(id);
+    }
+
+    private async Task OnPhotoSelected(InputFileChangeEventArgs e)
+    {
+        _photo = e.File;
+        using var stream = _photo.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        _photoPreviewUrl = $"data:{_photo.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}";
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_dto is null) return;
+        _saving = true;
+        _error = null;
+        try
+        {
+            _dto.SelectedClassIds = _selectedClassIds.ToList();
+
+            if (_photo is not null)
+            {
+                _dto.PhotoStream = _photo.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+                _dto.PhotoFileName = _photo.Name;
+            }
+
+            await VehicleService.UpdateAsync(Id, _dto);
+            NavigationManager.NavigateTo("/admin/entries");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

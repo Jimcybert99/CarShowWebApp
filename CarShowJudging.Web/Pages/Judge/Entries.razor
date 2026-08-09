@@ -1,5 +1,5 @@
 @page "/judge/entries"
-@attribute [Authorize(Roles = "Judge,Admin")]
+@attribute [Authorize(Roles = "Judge,Admin,SuperUser")]
 @inject IVehicleService VehicleService
 @inject IScoreService ScoreService
 @inject AuthenticationStateProvider AuthStateProvider

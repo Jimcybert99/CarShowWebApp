@@ -18,6 +18,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
 
         builder.Entity<Vehicle>(e =>
         {
+            e.HasIndex(v => v.EntryNumber).IsUnique();
+
             e.HasOne(v => v.RegisteredBy)
                 .WithMany()
                 .HasForeignKey(v => v.RegisteredById)

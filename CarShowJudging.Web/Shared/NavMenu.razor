@@ -23,7 +23,7 @@
                     </Authorized>
                 </AuthorizeView>
 
-                <AuthorizeView Roles="Judge,Admin">
+                <AuthorizeView Roles="Judge,Admin,SuperUser">
                     <Authorized>
                         <li class="nav-item">
                             <NavLink class="nav-link" href="judge/entries">Entries to Judge</NavLink>
@@ -31,7 +31,7 @@
                     </Authorized>
                 </AuthorizeView>
 
-                <AuthorizeView Roles="Admin">
+                <AuthorizeView Roles="Admin,SuperUser">
                     <Authorized>
                         <li class="nav-item">
                             <NavLink class="nav-link" href="admin/entries">All Entries</NavLink>

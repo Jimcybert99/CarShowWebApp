@@ -1,5 +1,5 @@
 @page "/admin/entries"
-@attribute [Authorize(Roles = "Admin,Judge")]
+@attribute [Authorize(Roles = "Admin,SuperUser,Judge")]
 @inject IVehicleService VehicleService
 @inject AuthenticationStateProvider AuthStateProvider
 @using Microsoft.AspNetCore.Identity
@@ -55,6 +55,18 @@ else
                             }
                         </td>
                         <td>
+                            @if (_userRole is "Admin" or "SuperUser")
+                            {
+                                <a class="btn btn-primary btn-sm me-1" href="@($"/admin/vehicles/{v.Id}/edit")">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <button class="btn btn-sm me-1 @(string.IsNullOrWhiteSpace(v.RegistrationNote) ? "btn-outline-secondary" : "btn-info")"
+                                        disabled="@string.IsNullOrWhiteSpace(v.RegistrationNote)"
+                                        title="@(string.IsNullOrWhiteSpace(v.RegistrationNote) ? "No note" : "View note")"
+                                        @onclick="() => ShowNote(v)">
+                                    <i class="bi bi-journal-text"></i>
+                                </button>
+                            }
                             <button class="btn btn-danger btn-sm" @onclick="() => AskDelete(v)">
                                 <i class="bi bi-trash"></i>
                             </button>
@@ -71,9 +83,12 @@ else
                Message="@($"Delete entry #{_deleteTarget?.EntryNumber} ({_deleteTarget?.Year} {_deleteTarget?.Make} {_deleteTarget?.Model})?")"
                OnConfirmed="DoDeleteAsync" />
 
+<NoteModal @ref="_noteModal" />
+
 @code {
     private List<Vehicle>? _vehicles;
     private ConfirmDialog _dialog = default!;
+    private NoteModal _noteModal = default!;
     private Vehicle? _deleteTarget;
     private string? _userId;
     private string _userRole = "Judge";
@@ -83,7 +98,9 @@ else
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = await UserManager.GetUserAsync(auth.User);
         _userId = user?.Id;
-        _userRole = auth.User.IsInRole("Admin") ? "Admin" : "Judge";
+        _userRole = auth.User.IsInRole("Admin") ? "Admin"
+            : auth.User.IsInRole("SuperUser") ? "SuperUser"
+            : "Judge";
         await LoadAsync();
     }
 
@@ -95,6 +112,8 @@ else
         _deleteTarget = v;
         _dialog.Show();
     }
+
+    private void ShowNote(Vehicle v) => _noteModal.Show(v);
 
     private async Task DoDeleteAsync()
     {
