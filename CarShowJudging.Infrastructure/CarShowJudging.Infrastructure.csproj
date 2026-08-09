@@ -14,5 +14,9 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.8" />
+    <!-- Override the transitive SQLitePCLRaw 2.1.11 pulled in by Microsoft.Data.Sqlite.Core:
+         it bundles SQLite 3.49.1, vulnerable to GHSA-2m69-gcr7-jv3q. 2.1.12 is a same-line
+         maintenance release that only bumps the bundled SQLite to 3.53.3 (fixed), no API changes. -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.12" />
   </ItemGroup>
 </Project>
