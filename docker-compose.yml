@@ -39,8 +39,6 @@ services:
     profiles: ["vps"]
     image: caddy:2-alpine
     restart: unless-stopped
-    environment:
-      DUCKDNS_SUBDOMAIN: ${DUCKDNS_SUBDOMAIN}
     ports:
       - "80:80"
       - "443:443"
