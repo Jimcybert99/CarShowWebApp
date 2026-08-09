@@ -4,6 +4,7 @@
 @inject IClassService ClassService
 @inject IVehicleService VehicleService
 @inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
 @using Microsoft.AspNetCore.Identity
 @inject UserManager<ApplicationUser> UserManager
 
@@ -33,6 +34,12 @@
             <option value="Craftsmanship">Craftsmanship (20%)</option>
             <option value="Presentation">Presentation (15%)</option>
         </select>
+    </div>
+
+    <div>
+        <button class="btn btn-success btn-sm" @onclick="DownloadSpreadsheetAsync" disabled="@(_rows is null || _rows.Count == 0)">
+            <i class="bi bi-file-earmark-excel me-1"></i>Download Spreadsheet
+        </button>
     </div>
 </div>
 
@@ -212,4 +219,19 @@ else
     }
 
     private static string FormatScore(double? v) => v.HasValue ? v.Value.ToString("F1") : "—";
+
+    private async Task DownloadSpreadsheetAsync()
+    {
+        if (_rows is null || _rows.Count == 0) return;
+
+        var className = _selectedClassId.HasValue
+            ? _classes.FirstOrDefault(c => c.Id == _selectedClassId.Value)?.Name
+            : null;
+
+        var bytes = ScoreSpreadsheetExporter.BuildWorkbook(_rows, className, _sortBy);
+        var fileName = ScoreSpreadsheetExporter.BuildFileName(className, _sortBy);
+        const string contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+        await JS.InvokeVoidAsync("downloadFileFromBytes", fileName, contentType, Convert.ToBase64String(bytes));
+    }
 }
