@@ -3,6 +3,7 @@ using CarShowJudging.Core.Models;
 using CarShowJudging.Infrastructure.Data;
 using CarShowJudging.Infrastructure.Services;
 using CarShowJudging.Web;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +13,18 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorPages();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+// Persist keys to the same durable volume the SQLite DB uses (only present in the Docker image —
+// Plan A/B non-Docker deployments already persist keys fine using ASP.NET Core's own default
+// location, since only a container's *entire filesystem* gets discarded on every redeploy).
+// Without this, keys live only in the container's ephemeral filesystem, so every restart/redeploy
+// invalidates every already-issued auth cookie and antiforgery token — anyone with a page open at
+// the time gets silent failures (antiforgery "key not found in key ring" exceptions) until they reload.
+if (Directory.Exists("/data"))
+{
+    builder.Services.AddDataProtection()
+        .PersistKeysToFileSystem(new DirectoryInfo("/data/dataprotection-keys"));
+}
 
 builder.Services.AddDbContext<AppDbContext>(options =>
 {

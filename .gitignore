@@ -28,6 +28,9 @@ secrets.json
 *.pfx
 .env
 
+## Local deployment artifacts
+backups/
+
 ## Claude Code local files
 .claude/
 
