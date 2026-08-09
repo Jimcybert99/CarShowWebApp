@@ -18,11 +18,17 @@ services:
   # Plan D (local self-host): Cloudflare Tunnel. No inbound ports, no router
   # config, works fine behind Starlink's CGNAT since it's outbound-only.
   # Enable with COMPOSE_PROFILES=cloudflare in .env.
+  #
+  # --protocol http2: cloudflared defaults to QUIC (UDP), which drops and takes
+  # ~1s to reconnect on brief network blips — exactly what Starlink's satellite
+  # handoffs cause every few hours. Each drop surfaces to visitors as a Cloudflare
+  # error page. HTTP/2 runs over TCP, which rides out those blips instead of
+  # tearing the tunnel down.
   cloudflared:
     profiles: ["cloudflare"]
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    command: tunnel --no-autoupdate --protocol http2 run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     depends_on:
       - carshowjudging
 
