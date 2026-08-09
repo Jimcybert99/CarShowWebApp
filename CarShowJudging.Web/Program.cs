@@ -84,6 +84,10 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+// MapStaticAssets() below only serves files known at build/publish time (its fingerprinted
+// manifest) — it does NOT serve runtime-added content like uploaded vehicle photos. UseStaticFiles()
+// is still needed alongside it for anything written to wwwroot after deployment.
+app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
