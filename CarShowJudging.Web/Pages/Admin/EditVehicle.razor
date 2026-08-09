@@ -67,7 +67,17 @@ else
 
                 <div class="mb-3">
                     <label class="form-label">Vehicle Photo <span class="text-muted small">(leave blank to keep existing photo)</span></label>
-                    <InputFile class="form-control" OnChange="OnPhotoSelected" accept="image/*" />
+                    <div class="d-flex gap-2">
+                        <label class="btn btn-outline-secondary btn-sm mb-0" for="photoCameraInput">
+                            <i class="bi bi-camera me-1"></i>Take Photo
+                        </label>
+                        <InputFile id="photoCameraInput" class="d-none" OnChange="OnPhotoSelected" accept="image/*" capture="environment" />
+
+                        <label class="btn btn-outline-secondary btn-sm mb-0" for="photoGalleryInput">
+                            <i class="bi bi-images me-1"></i>Choose Photo
+                        </label>
+                        <InputFile id="photoGalleryInput" class="d-none" OnChange="OnPhotoSelected" accept="image/*" />
+                    </div>
                 </div>
 
                 <div class="mb-3">
