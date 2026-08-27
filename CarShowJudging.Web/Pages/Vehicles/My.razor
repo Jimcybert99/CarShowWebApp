@@ -52,9 +52,7 @@ else
                         <td>
                             @if (v.PhotoUrl is not null)
                             {
-                                <a href="@v.PhotoUrl" target="_blank">
-                                    <img src="@v.PhotoUrl" alt="photo" style="height:40px;object-fit:cover;border-radius:4px" />
-                                </a>
+                                <img src="@v.PhotoUrl" alt="photo" style="height:40px;object-fit:cover;border-radius:4px;cursor:pointer" @onclick="() => ShowPhoto(v.PhotoUrl!)" />
                             }
                         </td>
                         <td>
@@ -82,10 +80,13 @@ else
 
 <NoteModal @ref="_noteModal" OnSaved="StateHasChanged" />
 
+<ImageLightbox @ref="_lightbox" />
+
 @code {
     private List<Vehicle>? _vehicles;
     private ConfirmDialog _dialog = default!;
     private NoteModal _noteModal = default!;
+    private ImageLightbox _lightbox = default!;
     private Vehicle? _deleteTarget;
     private string? _userId;
     private int? _pageSize = 25;
@@ -117,6 +118,8 @@ else
     }
 
     private void ShowNote(Vehicle v) => _noteModal.Show(v);
+
+    private void ShowPhoto(string url) => _lightbox.Show(url);
 
     private async Task DoDeleteAsync()
     {

@@ -43,10 +43,9 @@ else
                         <td>
                             @if (v.PhotoUrl is not null)
                             {
-                                <a href="@v.PhotoUrl" target="_blank">
-                                    <img src="@v.PhotoUrl" alt="photo"
-                                         style="height:40px;width:60px;object-fit:cover;border-radius:4px" />
-                                </a>
+                                <img src="@v.PhotoUrl" alt="photo"
+                                     style="height:40px;width:60px;object-fit:cover;border-radius:4px;cursor:pointer"
+                                     @onclick="() => ShowPhoto(v.PhotoUrl!)" />
                             }
                         </td>
                         <td>@v.Year @v.Make @v.Model</td>
@@ -89,11 +88,14 @@ else
 
 <NoteModal @ref="_noteModal" OnSaved="StateHasChanged" />
 
+<ImageLightbox @ref="_lightbox" />
+
 @code {
     private List<Vehicle>? _vehicles;
     private HashSet<int> _scoredIds = new();
     private string _judgeId = string.Empty;
     private NoteModal _noteModal = default!;
+    private ImageLightbox _lightbox = default!;
     private int? _pageSize = 25;
     private int _pageNumber = 1;
 
@@ -115,4 +117,6 @@ else
     }
 
     private void ShowNote(Vehicle v) => _noteModal.Show(v);
+
+    private void ShowPhoto(string url) => _lightbox.Show(url);
 }
