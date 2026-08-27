@@ -86,8 +86,11 @@ public class VehicleService : IVehicleService
         }
     }
 
-    public async Task UpdateAsync(int vehicleId, VehicleUpdateDto dto)
+    public async Task UpdateAsync(int vehicleId, VehicleUpdateDto dto, string requestingUserRole)
     {
+        if (requestingUserRole is not ("Admin" or "SuperUser"))
+            throw new UnauthorizedAccessException("Only an admin can edit this entry.");
+
         var vehicle = await _db.Vehicles.Include(v => v.Classes).FirstOrDefaultAsync(v => v.Id == vehicleId)
             ?? throw new KeyNotFoundException($"Vehicle {vehicleId} not found.");
 

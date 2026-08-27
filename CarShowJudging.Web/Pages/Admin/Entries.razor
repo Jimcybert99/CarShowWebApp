@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = "Admin,SuperUser,Judge")]
 @inject IVehicleService VehicleService
 @inject AuthenticationStateProvider AuthStateProvider
+@inject PageSizePreferenceService PageSizePrefs
 @using Microsoft.AspNetCore.Identity
 @inject UserManager<ApplicationUser> UserManager
 
@@ -74,7 +75,7 @@ else
                         <td>
                             @if (_userRole is "Admin" or "SuperUser")
                             {
-                                <a class="btn btn-primary btn-sm me-1" href="@($"/admin/vehicles/{v.Id}/edit")">
+                                <a class="btn btn-primary btn-sm me-1" href="@($"/admin/vehicles/{v.Id}/edit?page={_pageNumber}&pageSize={PageSizeQueryValue}")">
                                     <i class="bi bi-pencil"></i>
                                 </a>
                             }
@@ -95,7 +96,7 @@ else
             </tbody>
         </table>
     </div>
-    <Pagination TotalItems="_vehicles.Count" @bind-PageSize="_pageSize" @bind-PageNumber="_pageNumber" />
+    <Pagination TotalItems="_vehicles.Count" PageSize="_pageSize" PageSizeChanged="OnPageSizeChangedAsync" @bind-PageNumber="_pageNumber" />
 }
 
 <ConfirmDialog @ref="_dialog"
@@ -106,6 +107,14 @@ else
 <NoteModal @ref="_noteModal" OnSaved="StateHasChanged" />
 
 @code {
+    private const string PageSizeStorageKey = "admin-entries";
+
+    [SupplyParameterFromQuery(Name = "page")]
+    private int? PageQuery { get; set; }
+
+    [SupplyParameterFromQuery(Name = "pageSize")]
+    private string? PageSizeQuery { get; set; }
+
     private List<Vehicle>? _vehicles;
     private ConfirmDialog _dialog = default!;
     private NoteModal _noteModal = default!;
@@ -114,6 +123,9 @@ else
     private string _userRole = "Judge";
     private int? _pageSize = 25;
     private int _pageNumber = 1;
+    private bool _pageSizeFromQuery;
+
+    private string PageSizeQueryValue => _pageSize?.ToString() ?? "all";
 
     private IEnumerable<Vehicle> PagedVehicles =>
         _pageSize.HasValue
@@ -128,7 +140,36 @@ else
         _userRole = auth.User.IsInRole("Admin") ? "Admin"
             : auth.User.IsInRole("SuperUser") ? "SuperUser"
             : "Judge";
+        if (PageQuery is > 0)
+            _pageNumber = PageQuery.Value;
+        if (PageSizeQuery == "all")
+        {
+            _pageSize = null;
+            _pageSizeFromQuery = true;
+        }
+        else if (PageSizeQuery is not null && int.TryParse(PageSizeQuery, out var ps))
+        {
+            _pageSize = ps;
+            _pageSizeFromQuery = true;
+        }
         await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _pageSizeFromQuery) return;
+        var (found, saved) = await PageSizePrefs.GetAsync(PageSizeStorageKey);
+        if (found)
+        {
+            _pageSize = saved;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnPageSizeChangedAsync(int? newSize)
+    {
+        _pageSize = newSize;
+        await PageSizePrefs.SetAsync(PageSizeStorageKey, newSize);
     }
 
     private async Task LoadAsync() =>

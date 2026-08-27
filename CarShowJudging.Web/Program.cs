@@ -3,6 +3,7 @@ using CarShowJudging.Core.Models;
 using CarShowJudging.Infrastructure.Data;
 using CarShowJudging.Infrastructure.Services;
 using CarShowJudging.Web;
+using CarShowJudging.Web.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
@@ -60,6 +61,7 @@ builder.Services.AddScoped<IVehicleService, VehicleService>();
 builder.Services.AddScoped<IScoreService, ScoreService>();
 builder.Services.AddScoped<IClassService, ClassService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<PageSizePreferenceService>();
 
 builder.Services.AddHttpContextAccessor();
 

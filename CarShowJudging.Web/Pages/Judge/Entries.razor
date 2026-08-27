@@ -3,6 +3,7 @@
 @inject IVehicleService VehicleService
 @inject IScoreService ScoreService
 @inject AuthenticationStateProvider AuthStateProvider
+@inject PageSizePreferenceService PageSizePrefs
 @using Microsoft.AspNetCore.Identity
 @inject UserManager<ApplicationUser> UserManager
 
@@ -67,7 +68,7 @@ else
                             }
                         </td>
                         <td>
-                            <a href="/judge/entries/@v.Id/score" class="btn btn-primary btn-sm">
+                            <a href="@($"/judge/entries/{v.Id}/score?page={_pageNumber}&pageSize={PageSizeQueryValue}")" class="btn btn-primary btn-sm">
                                 @(scored ? "Re-score" : "Score")
                             </a>
                         </td>
@@ -83,7 +84,7 @@ else
             </tbody>
         </table>
     </div>
-    <Pagination TotalItems="_vehicles.Count" @bind-PageSize="_pageSize" @bind-PageNumber="_pageNumber" />
+    <Pagination TotalItems="_vehicles.Count" PageSize="_pageSize" PageSizeChanged="OnPageSizeChangedAsync" @bind-PageNumber="_pageNumber" />
 }
 
 <NoteModal @ref="_noteModal" OnSaved="StateHasChanged" />
@@ -91,6 +92,14 @@ else
 <ImageLightbox @ref="_lightbox" />
 
 @code {
+    private const string PageSizeStorageKey = "judge-entries";
+
+    [SupplyParameterFromQuery(Name = "page")]
+    private int? PageQuery { get; set; }
+
+    [SupplyParameterFromQuery(Name = "pageSize")]
+    private string? PageSizeQuery { get; set; }
+
     private List<Vehicle>? _vehicles;
     private HashSet<int> _scoredIds = new();
     private string _judgeId = string.Empty;
@@ -98,6 +107,9 @@ else
     private ImageLightbox _lightbox = default!;
     private int? _pageSize = 25;
     private int _pageNumber = 1;
+    private bool _pageSizeFromQuery;
+
+    private string PageSizeQueryValue => _pageSize?.ToString() ?? "all";
 
     private IEnumerable<Vehicle> PagedVehicles =>
         _pageSize.HasValue
@@ -110,6 +122,19 @@ else
         var user = await UserManager.GetUserAsync(auth.User);
         _judgeId = user?.Id ?? string.Empty;
 
+        if (PageQuery is > 0)
+            _pageNumber = PageQuery.Value;
+        if (PageSizeQuery == "all")
+        {
+            _pageSize = null;
+            _pageSizeFromQuery = true;
+        }
+        else if (PageSizeQuery is not null && int.TryParse(PageSizeQuery, out var ps))
+        {
+            _pageSize = ps;
+            _pageSizeFromQuery = true;
+        }
+
         _vehicles = await VehicleService.GetAllAsync();
 
         if (!string.IsNullOrEmpty(_judgeId))
@@ -119,4 +144,21 @@ else
     private void ShowNote(Vehicle v) => _noteModal.Show(v);
 
     private void ShowPhoto(string url) => _lightbox.Show(url);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _pageSizeFromQuery) return;
+        var (found, saved) = await PageSizePrefs.GetAsync(PageSizeStorageKey);
+        if (found)
+        {
+            _pageSize = saved;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnPageSizeChangedAsync(int? newSize)
+    {
+        _pageSize = newSize;
+        await PageSizePrefs.SetAsync(PageSizeStorageKey, newSize);
+    }
 }

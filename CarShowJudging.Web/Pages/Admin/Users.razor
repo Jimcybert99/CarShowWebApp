@@ -3,6 +3,7 @@
 @using Microsoft.EntityFrameworkCore
 @inject UserManager<ApplicationUser> UserManager
 @inject AuthenticationStateProvider AuthStateProvider
+@inject PageSizePreferenceService PageSizePrefs
 
 <PageTitle>Manage Users</PageTitle>
 <h2>Manage Users</h2>
@@ -80,7 +81,7 @@ else
             </tbody>
         </table>
     </div>
-    <Pagination TotalItems="_rows.Count" @bind-PageSize="_pageSize" @bind-PageNumber="_pageNumber" />
+    <Pagination TotalItems="_rows.Count" PageSize="_pageSize" PageSizeChanged="OnPageSizeChangedAsync" @bind-PageNumber="_pageNumber" />
 }
 
 <ConfirmDialog @ref="_confirmDialog"
@@ -90,6 +91,8 @@ else
                OnConfirmed="DeleteConfirmedAsync" />
 
 @code {
+    private const string PageSizeStorageKey = "admin-users";
+
     private List<UserRow>? _rows;
     private string? _error;
     private string? _currentUserId;
@@ -123,6 +126,23 @@ else
             rows.Add(new UserRow(user, roles.ToList()));
         }
         _rows = rows;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        var (found, saved) = await PageSizePrefs.GetAsync(PageSizeStorageKey);
+        if (found)
+        {
+            _pageSize = saved;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnPageSizeChangedAsync(int? newSize)
+    {
+        _pageSize = newSize;
+        await PageSizePrefs.SetAsync(PageSizeStorageKey, newSize);
     }
 
     private static string CurrentRole(UserRow row) =>

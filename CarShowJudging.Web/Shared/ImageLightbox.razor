@@ -1,7 +1,7 @@
 @if (_visible)
 {
     <div class="lightbox-overlay" @onclick="Close">
-        <img src="@_photoUrl" alt="Vehicle photo" class="lightbox-image" @onclick:stopPropagation="true" />
+        <img src="@_photoUrl" alt="Vehicle photo" class="lightbox-image" @onclick="Close" />
     </div>
 }
 

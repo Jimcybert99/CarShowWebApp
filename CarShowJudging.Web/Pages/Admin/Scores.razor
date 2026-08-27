@@ -3,6 +3,7 @@
 @inject IScoreService ScoreService
 @inject IClassService ClassService
 @inject IJSRuntime JS
+@inject PageSizePreferenceService PageSizePrefs
 @inject AuthenticationStateProvider AuthStateProvider
 
 <PageTitle>Scoring Leaderboard</PageTitle>
@@ -156,7 +157,7 @@ else
             </tbody>
         </table>
     </div>
-    <Pagination TotalItems="_rows.Count" @bind-PageSize="_pageSize" @bind-PageNumber="_pageNumber" />
+    <Pagination TotalItems="_rows.Count" PageSize="_pageSize" PageSizeChanged="OnPageSizeChangedAsync" @bind-PageNumber="_pageNumber" />
 }
 
 <ConfirmDialog @ref="_dialog"
@@ -202,6 +203,8 @@ else
 }
 
 @code {
+    private const string PageSizeStorageKey = "admin-scores";
+
     private List<ScoringRowDto>? _rows;
     private List<VehicleClass> _classes = new();
     private HashSet<int> _expandedIds = new();
@@ -234,6 +237,23 @@ else
 
     private async Task LoadAsync() =>
         _rows = await ScoreService.GetScoringRowsAsync(_selectedClassId, _sortBy);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        var (found, saved) = await PageSizePrefs.GetAsync(PageSizeStorageKey);
+        if (found)
+        {
+            _pageSize = saved;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnPageSizeChangedAsync(int? newSize)
+    {
+        _pageSize = newSize;
+        await PageSizePrefs.SetAsync(PageSizeStorageKey, newSize);
+    }
 
     private async Task OnClassChanged(ChangeEventArgs e)
     {

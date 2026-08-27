@@ -6,7 +6,7 @@ namespace CarShowJudging.Core.Interfaces;
 public interface IVehicleService
 {
     Task<Vehicle> RegisterAsync(VehicleRegistrationDto dto, string registeredById);
-    Task UpdateAsync(int vehicleId, VehicleUpdateDto dto);
+    Task UpdateAsync(int vehicleId, VehicleUpdateDto dto, string requestingUserRole);
     Task UpdateNoteAsync(int vehicleId, string? note);
     Task<List<Vehicle>> GetAllAsync();
     Task<List<Vehicle>> GetByOwnerAsync(string ownerId);

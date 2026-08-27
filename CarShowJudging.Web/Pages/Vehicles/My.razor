@@ -3,6 +3,7 @@
 @inject IVehicleService VehicleService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Nav
+@inject PageSizePreferenceService PageSizePrefs
 @using Microsoft.AspNetCore.Identity
 @inject UserManager<ApplicationUser> UserManager
 
@@ -70,7 +71,7 @@ else
             </tbody>
         </table>
     </div>
-    <Pagination TotalItems="_vehicles.Count" @bind-PageSize="_pageSize" @bind-PageNumber="_pageNumber" />
+    <Pagination TotalItems="_vehicles.Count" PageSize="_pageSize" PageSizeChanged="OnPageSizeChangedAsync" @bind-PageNumber="_pageNumber" />
 }
 
 <ConfirmDialog @ref="_dialog"
@@ -83,6 +84,8 @@ else
 <ImageLightbox @ref="_lightbox" />
 
 @code {
+    private const string PageSizeStorageKey = "vehicles-my";
+
     private List<Vehicle>? _vehicles;
     private ConfirmDialog _dialog = default!;
     private NoteModal _noteModal = default!;
@@ -109,6 +112,23 @@ else
     {
         if (_userId is null) return;
         _vehicles = await VehicleService.GetByOwnerAsync(_userId);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        var (found, saved) = await PageSizePrefs.GetAsync(PageSizeStorageKey);
+        if (found)
+        {
+            _pageSize = saved;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnPageSizeChangedAsync(int? newSize)
+    {
+        _pageSize = newSize;
+        await PageSizePrefs.SetAsync(PageSizeStorageKey, newSize);
     }
 
     private void AskDelete(Vehicle v)

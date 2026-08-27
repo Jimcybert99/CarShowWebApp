@@ -42,9 +42,9 @@ html, body {
 }
 
 .lightbox-image {
-    max-width: 90vw;
-    max-height: 90vh;
+    max-width: 81vw;
+    max-height: 81vh;
     object-fit: contain;
     border-radius: 8px;
-    cursor: default;
+    cursor: pointer;
 }

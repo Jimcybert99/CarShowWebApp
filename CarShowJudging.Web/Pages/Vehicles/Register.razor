@@ -58,21 +58,29 @@
                 <InputText class="form-control" @bind-Value="_dto.Model" />
             </div>
 
-            @if (_classes.Count > 0)
-            {
-                <div class="mb-3">
-                    <label class="form-label">Classes <span class="text-muted small">(optional, select multiple)</span></label>
-                    @foreach (var cls in _classes)
+            <div class="row g-3 mb-3">
+                <div class="col-12 col-sm-6">
+                    @if (_classes.Count > 0)
                     {
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="cls_@cls.Id"
-                                   checked="@_selectedClassIds.Contains(cls.Id)"
-                                   @onchange="e => ToggleClass(cls.Id, (bool)e.Value!)" />
-                            <label class="form-check-label" for="cls_@cls.Id">@cls.Name</label>
-                        </div>
+                        <label class="form-label">Classes <span class="text-muted small">(optional, select multiple)</span></label>
+                        @foreach (var cls in _classes)
+                        {
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="cls_@cls.Id"
+                                       checked="@_selectedClassIds.Contains(cls.Id)"
+                                       @onchange="e => ToggleClass(cls.Id, (bool)e.Value!)" />
+                                <label class="form-check-label" for="cls_@cls.Id">@cls.Name</label>
+                            </div>
+                        }
                     }
                 </div>
-            }
+                <div class="col-12 col-sm-6">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="paidCheck" @bind="_dto.Paid" />
+                        <label class="form-check-label" for="paidCheck">Paid</label>
+                    </div>
+                </div>
+            </div>
 
             <div class="row g-3 mb-3">
                 <div class="col-12 col-sm-6">
@@ -98,10 +106,6 @@
                             <option value="@n">@n</option>
                         }
                     </select>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="paidCheck" @bind="_dto.Paid" />
-                        <label class="form-check-label" for="paidCheck">Paid</label>
-                    </div>
                 </div>
             </div>
 

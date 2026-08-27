@@ -4,6 +4,7 @@
 @inject IVehicleService VehicleService
 @inject IClassService ClassService
 @inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthStateProvider
 @inject ILogger<EditVehicle> Logger
 
 <PageTitle>Edit Vehicle</PageTitle>
@@ -51,21 +52,29 @@ else
                     <InputText class="form-control" @bind-Value="_dto.Model" />
                 </div>
 
-                @if (_classes.Count > 0)
-                {
-                    <div class="mb-3">
-                        <label class="form-label">Classes <span class="text-muted small">(optional, select multiple)</span></label>
-                        @foreach (var cls in _classes)
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-sm-6">
+                        @if (_classes.Count > 0)
                         {
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="cls_@cls.Id"
-                                       checked="@_selectedClassIds.Contains(cls.Id)"
-                                       @onchange="e => ToggleClass(cls.Id, (bool)e.Value!)" />
-                                <label class="form-check-label" for="cls_@cls.Id">@cls.Name</label>
-                            </div>
+                            <label class="form-label">Classes <span class="text-muted small">(optional, select multiple)</span></label>
+                            @foreach (var cls in _classes)
+                            {
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="cls_@cls.Id"
+                                           checked="@_selectedClassIds.Contains(cls.Id)"
+                                           @onchange="e => ToggleClass(cls.Id, (bool)e.Value!)" />
+                                    <label class="form-check-label" for="cls_@cls.Id">@cls.Name</label>
+                                </div>
+                            }
                         }
                     </div>
-                }
+                    <div class="col-12 col-sm-6">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="paidCheck" @bind="_dto.Paid" />
+                            <label class="form-check-label" for="paidCheck">Paid</label>
+                        </div>
+                    </div>
+                </div>
 
                 <div class="row g-3 mb-3">
                     <div class="col-12 col-sm-6">
@@ -91,10 +100,6 @@ else
                                 <option value="@n">@n</option>
                             }
                         </select>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="paidCheck" @bind="_dto.Paid" />
-                            <label class="form-check-label" for="paidCheck">Paid</label>
-                        </div>
                     </div>
                 </div>
 
@@ -108,7 +113,7 @@ else
                 <button type="submit" class="btn btn-primary" disabled="@_saving">
                     @(_saving ? "Saving…" : "Save Changes")
                 </button>
-                <a class="btn btn-outline-secondary" href="/admin/entries">Cancel</a>
+                <a class="btn btn-outline-secondary" href="@ReturnUrl">Cancel</a>
             </EditForm>
         </div>
     </div>
@@ -129,6 +134,23 @@ else
 @code {
     [Parameter] public int Id { get; set; }
 
+    [SupplyParameterFromQuery(Name = "page")]
+    private int? Page { get; set; }
+
+    [SupplyParameterFromQuery(Name = "pageSize")]
+    private string? PageSizeParam { get; set; }
+
+    private string ReturnUrl
+    {
+        get
+        {
+            var query = new List<string>();
+            if (Page is > 0) query.Add($"page={Page}");
+            if (!string.IsNullOrEmpty(PageSizeParam)) query.Add($"pageSize={Uri.EscapeDataString(PageSizeParam)}");
+            return query.Count > 0 ? $"/admin/entries?{string.Join("&", query)}" : "/admin/entries";
+        }
+    }
+
     private VehicleUpdateDto? _dto;
     private List<VehicleClass> _classes = new();
     private HashSet<int> _selectedClassIds = new();
@@ -137,9 +159,15 @@ else
     private bool _saving;
     private bool _notFound;
     private string? _error;
+    private string _userRole = "Judge";
 
     protected override async Task OnInitializedAsync()
     {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        _userRole = auth.User.IsInRole("Admin") ? "Admin"
+            : auth.User.IsInRole("SuperUser") ? "SuperUser"
+            : "Judge";
+
         _classes = await ClassService.GetAllAsync();
 
         var vehicle = await VehicleService.GetByIdAsync(Id);
@@ -193,10 +221,14 @@ else
                 _dto.PhotoFileName = _photo.Name;
             }
 
-            await VehicleService.UpdateAsync(Id, _dto);
-            NavigationManager.NavigateTo("/admin/entries");
+            await VehicleService.UpdateAsync(Id, _dto, _userRole);
+            NavigationManager.NavigateTo(ReturnUrl);
         }
         catch (InvalidOperationException ex)
+        {
+            _error = ex.Message;
+        }
+        catch (UnauthorizedAccessException ex)
         {
             _error = ex.Message;
         }
