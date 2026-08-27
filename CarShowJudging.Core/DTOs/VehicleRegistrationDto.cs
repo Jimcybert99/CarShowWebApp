@@ -22,4 +22,6 @@ public class VehicleRegistrationDto
     public Stream? PhotoStream { get; set; }
     public string? PhotoFileName { get; set; }
     public string? RegistrationNote { get; set; }
+    public bool Paid { get; set; }
+    public int? RowNumber { get; set; }
 }

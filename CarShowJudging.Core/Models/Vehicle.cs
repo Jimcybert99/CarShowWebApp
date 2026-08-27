@@ -14,6 +14,8 @@ public class Vehicle
     public int Year { get; set; }
     public string? PhotoUrl { get; set; }
     public string? RegistrationNote { get; set; }
+    public bool Paid { get; set; }
+    public int? RowNumber { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public ICollection<VehicleClass> Classes { get; set; } = new List<VehicleClass>();
     public ICollection<Score> Scores { get; set; } = new List<Score>();

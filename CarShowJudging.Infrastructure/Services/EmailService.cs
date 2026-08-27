@@ -42,7 +42,7 @@ public class EmailService : IEmailService
                 : null
         };
 
-        var message = new MailMessage(from, toEmail, subject, htmlBody) { IsBodyHtml = true };
+        using var message = new MailMessage(from, toEmail, subject, htmlBody) { IsBodyHtml = true };
         await client.SendMailAsync(message);
     }
 }

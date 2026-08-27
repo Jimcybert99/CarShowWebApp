@@ -31,10 +31,11 @@ else
                     <th class="d-none d-md-table-cell">Classes</th>
                     <th>Your Score</th>
                     <th></th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
-                @foreach (var v in _vehicles)
+                @foreach (var v in PagedVehicles)
                 {
                     var scored = _scoredIds.Contains(v.Id);
                     <tr class="entry-row">
@@ -71,17 +72,35 @@ else
                                 @(scored ? "Re-score" : "Score")
                             </a>
                         </td>
+                        <td>
+                            <button class="btn btn-sm @(string.IsNullOrWhiteSpace(v.RegistrationNote) ? "btn-outline-secondary" : "btn-info")"
+                                    title="@(string.IsNullOrWhiteSpace(v.RegistrationNote) ? "Add note" : "Edit note")"
+                                    @onclick="() => ShowNote(v)">
+                                <i class="bi bi-journal-text"></i>
+                            </button>
+                        </td>
                     </tr>
                 }
             </tbody>
         </table>
     </div>
+    <Pagination TotalItems="_vehicles.Count" @bind-PageSize="_pageSize" @bind-PageNumber="_pageNumber" />
 }
+
+<NoteModal @ref="_noteModal" OnSaved="StateHasChanged" />
 
 @code {
     private List<Vehicle>? _vehicles;
     private HashSet<int> _scoredIds = new();
     private string _judgeId = string.Empty;
+    private NoteModal _noteModal = default!;
+    private int? _pageSize = 25;
+    private int _pageNumber = 1;
+
+    private IEnumerable<Vehicle> PagedVehicles =>
+        _pageSize.HasValue
+            ? (_vehicles ?? []).Skip((_pageNumber - 1) * _pageSize.Value).Take(_pageSize.Value)
+            : (_vehicles ?? []);
 
     protected override async Task OnInitializedAsync()
     {
@@ -92,13 +111,8 @@ else
         _vehicles = await VehicleService.GetAllAsync();
 
         if (!string.IsNullOrEmpty(_judgeId))
-        {
-            foreach (var v in _vehicles)
-            {
-                var existing = await ScoreService.GetByVehicleAndJudgeAsync(v.Id, _judgeId);
-                if (existing is not null)
-                    _scoredIds.Add(v.Id);
-            }
-        }
+            _scoredIds = await ScoreService.GetScoredVehicleIdsForJudgeAsync(_judgeId);
     }
+
+    private void ShowNote(Vehicle v) => _noteModal.Show(v);
 }

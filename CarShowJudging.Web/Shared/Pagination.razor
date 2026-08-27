@@ -1,0 +1,78 @@
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-3">
+    <div class="text-muted small">
+        @if (TotalItems == 0)
+        {
+            <span>No items</span>
+        }
+        else
+        {
+            <span>Showing @FirstItemIndex–@LastItemIndex of @TotalItems</span>
+        }
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <label class="small mb-0 text-nowrap">Show</label>
+        <select class="form-select form-select-sm" style="width:auto" value="@PageSizeValue" @onchange="OnPageSizeChangedAsync">
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="all">All</option>
+        </select>
+        <div class="btn-group btn-group-sm" role="group">
+            <button class="btn btn-outline-secondary" disabled="@(PageNumber <= 1)" @onclick="() => GoToPageAsync(PageNumber - 1)">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+            <span class="btn btn-outline-secondary disabled text-nowrap">Page @PageNumber of @PageCount</span>
+            <button class="btn btn-outline-secondary" disabled="@(PageNumber >= PageCount)" @onclick="() => GoToPageAsync(PageNumber + 1)">
+                <i class="bi bi-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public int TotalItems { get; set; }
+    [Parameter] public int? PageSize { get; set; } = 25;
+    [Parameter] public EventCallback<int?> PageSizeChanged { get; set; }
+    [Parameter] public int PageNumber { get; set; } = 1;
+    [Parameter] public EventCallback<int> PageNumberChanged { get; set; }
+
+    private string PageSizeValue => PageSize?.ToString() ?? "all";
+
+    private int PageCount => PageSize.HasValue
+        ? Math.Max(1, (int)Math.Ceiling(TotalItems / (double)PageSize.Value))
+        : 1;
+
+    private int FirstItemIndex => TotalItems == 0 ? 0
+        : PageSize.HasValue ? (PageNumber - 1) * PageSize.Value + 1
+        : 1;
+
+    private int LastItemIndex => TotalItems == 0 ? 0
+        : PageSize.HasValue ? Math.Min(TotalItems, PageNumber * PageSize.Value)
+        : TotalItems;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // If the underlying list shrank (e.g. a delete removed the last item on this page, or a
+        // filter now matches fewer rows) since the last render, PageNumber can end up past the
+        // new PageCount, stranding the viewer on an empty page. Self-heal by clamping down to the
+        // last valid page — this covers every current and future consumer of this component
+        // without each one having to remember to reset its own page number after a reload.
+        if (PageNumber > PageCount)
+            await PageNumberChanged.InvokeAsync(PageCount);
+    }
+
+    private async Task OnPageSizeChangedAsync(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString();
+        int? newSize = value == "all" ? null : int.Parse(value!);
+        await PageSizeChanged.InvokeAsync(newSize);
+        await PageNumberChanged.InvokeAsync(1);
+    }
+
+    private async Task GoToPageAsync(int page)
+    {
+        if (page < 1 || page > PageCount) return;
+        await PageNumberChanged.InvokeAsync(page);
+    }
+}

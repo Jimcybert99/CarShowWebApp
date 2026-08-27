@@ -16,6 +16,10 @@
 {
     <p>Loading…</p>
 }
+else if (_rows.Count == 0)
+{
+    <p class="text-muted">No users found.</p>
+}
 else
 {
     <div class="table-responsive">
@@ -23,17 +27,15 @@ else
             <thead class="table-dark">
                 <tr>
                     <th>Username</th>
-                    <th>Display Name</th>
                     <th>Roles</th>
                     <th></th>
                 </tr>
             </thead>
             <tbody>
-                @foreach (var row in _rows)
+                @foreach (var row in PagedRows)
                 {
                     <tr>
                         <td>@row.User.UserName</td>
-                        <td>@row.User.DisplayName</td>
                         <td>
                             @foreach (var role in row.Roles.OrderBy(r => r))
                             {
@@ -64,10 +66,7 @@ else
                                             @onchange="e => ChangeRoleAsync(row, e.Value?.ToString())">
                                         <option value="User">User</option>
                                         <option value="Judge">Judge</option>
-                                        @if (_viewerIsAdmin)
-                                        {
-                                            <option value="SuperUser">SuperUser</option>
-                                        }
+                                        <option value="SuperUser">SuperUser</option>
                                     </select>
                                     <button class="btn btn-outline-danger btn-sm"
                                             @onclick="() => PromptDelete(row)">
@@ -81,6 +80,7 @@ else
             </tbody>
         </table>
     </div>
+    <Pagination TotalItems="_rows.Count" @bind-PageSize="_pageSize" @bind-PageNumber="_pageNumber" />
 }
 
 <ConfirmDialog @ref="_confirmDialog"
@@ -96,6 +96,13 @@ else
     private bool _viewerIsAdmin;
     private UserRow? _pendingDelete;
     private ConfirmDialog _confirmDialog = default!;
+    private int? _pageSize = 25;
+    private int _pageNumber = 1;
+
+    private IEnumerable<UserRow> PagedRows =>
+        _pageSize.HasValue
+            ? (_rows ?? []).Skip((_pageNumber - 1) * _pageSize.Value).Take(_pageSize.Value)
+            : (_rows ?? []);
 
     protected override async Task OnInitializedAsync()
     {
@@ -108,7 +115,7 @@ else
 
     private async Task LoadAsync()
     {
-        var users = UserManager.Users.OrderBy(u => u.UserName).ToList();
+        var users = await UserManager.Users.OrderBy(u => u.UserName).ToListAsync();
         var rows = new List<UserRow>();
         foreach (var user in users)
         {
@@ -123,10 +130,35 @@ else
         : row.Roles.Contains("Judge") ? "Judge"
         : "User";
 
+    private static readonly HashSet<string> AssignableRoles = ["User", "Judge", "SuperUser"];
+
     private async Task ChangeRoleAsync(UserRow row, string? newRole)
     {
         newRole ??= "User";
         _error = null;
+
+        // A Blazor Server change-event's value comes from the client over SignalR and is NOT
+        // constrained to the <option> values actually rendered — a forged event could carry any
+        // string. Without this check, a SuperUser (who has legitimate access to this handler for
+        // any unlocked row) could send "Admin" and grant themselves/anyone the Admin role,
+        // defeating the "SuperUser can't touch Admin" rule the UI otherwise enforces.
+        if (!AssignableRoles.Contains(newRole))
+        {
+            _error = "Invalid role.";
+            return;
+        }
+
+        // Re-derive the same "is this row locked for me" rule the markup uses, rather than
+        // trusting that the client only ever invokes this for a row it rendered as unlocked.
+        var locked = row.User.Id == _currentUserId
+            || row.Roles.Contains("Admin")
+            || (!_viewerIsAdmin && row.Roles.Contains("SuperUser"));
+        if (locked)
+        {
+            _error = "You are not allowed to change this user's role.";
+            return;
+        }
+
         foreach (var special in new[] { "Judge", "SuperUser" })
             if (row.Roles.Contains(special))
                 await UserManager.RemoveFromRoleAsync(row.User, special);

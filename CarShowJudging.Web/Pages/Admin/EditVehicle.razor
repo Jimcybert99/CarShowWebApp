@@ -1,8 +1,10 @@
 @page "/admin/vehicles/{Id:int}/edit"
 @attribute [Authorize(Roles = "Admin,SuperUser")]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inject IVehicleService VehicleService
 @inject IClassService ClassService
 @inject NavigationManager NavigationManager
+@inject ILogger<EditVehicle> Logger
 
 <PageTitle>Edit Vehicle</PageTitle>
 <h2>Edit Vehicle</h2>
@@ -26,7 +28,7 @@ else
     <div class="col-md-7">
     <div class="card">
         <div class="card-body">
-            <EditForm Model="_dto" OnValidSubmit="SubmitAsync">
+            <EditForm Model="_dto" FormName="EditVehicle" OnValidSubmit="SubmitAsync">
                 <DataAnnotationsValidator />
                 <ValidationSummary class="text-danger" />
 
@@ -65,18 +67,34 @@ else
                     </div>
                 }
 
-                <div class="mb-3">
-                    <label class="form-label">Vehicle Photo <span class="text-muted small">(leave blank to keep existing photo)</span></label>
-                    <div class="d-flex gap-2">
-                        <label class="btn btn-outline-secondary btn-sm mb-0" for="photoCameraInput">
-                            <i class="bi bi-camera me-1"></i>Take Photo
-                        </label>
-                        <InputFile id="photoCameraInput" class="d-none" OnChange="OnPhotoSelected" accept="image/*" capture="environment" />
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-sm-6">
+                        <label class="form-label">Vehicle Photo <span class="text-muted small">(leave blank to keep existing photo)</span></label>
+                        <div class="d-flex gap-2">
+                            <label class="btn btn-outline-secondary btn-sm mb-0" for="photoCameraInput">
+                                <i class="bi bi-camera me-1"></i>Take Photo
+                            </label>
+                            <InputFile id="photoCameraInput" class="d-none" OnChange="OnPhotoSelected" accept="image/*" capture="environment" />
 
-                        <label class="btn btn-outline-secondary btn-sm mb-0" for="photoGalleryInput">
-                            <i class="bi bi-images me-1"></i>Choose Photo
-                        </label>
-                        <InputFile id="photoGalleryInput" class="d-none" OnChange="OnPhotoSelected" accept="image/*" />
+                            <label class="btn btn-outline-secondary btn-sm mb-0" for="photoGalleryInput">
+                                <i class="bi bi-images me-1"></i>Choose Photo
+                            </label>
+                            <InputFile id="photoGalleryInput" class="d-none" OnChange="OnPhotoSelected" accept="image/*" />
+                        </div>
+                    </div>
+                    <div class="col-12 col-sm-6">
+                        <label class="form-label">Row Number <span class="text-muted small">(optional)</span></label>
+                        <select class="form-select mb-2" @bind="_dto.RowNumber">
+                            <option value="">— Unassigned —</option>
+                            @for (var n = 1; n <= 50; n++)
+                            {
+                                <option value="@n">@n</option>
+                            }
+                        </select>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="paidCheck" @bind="_dto.Paid" />
+                            <label class="form-check-label" for="paidCheck">Paid</label>
+                        </div>
                     </div>
                 </div>
 
@@ -133,12 +151,13 @@ else
 
         _dto = new VehicleUpdateDto
         {
-            EntryNumber = vehicle.EntryNumber,
             OwnerName = vehicle.OwnerName,
             Make = vehicle.Make,
             Model = vehicle.Model,
             Year = vehicle.Year,
-            RegistrationNote = vehicle.RegistrationNote
+            RegistrationNote = vehicle.RegistrationNote,
+            Paid = vehicle.Paid,
+            RowNumber = vehicle.RowNumber
         };
         _selectedClassIds = vehicle.Classes.Select(c => c.Id).ToHashSet();
         _photoPreviewUrl = vehicle.PhotoUrl;
@@ -177,9 +196,14 @@ else
             await VehicleService.UpdateAsync(Id, _dto);
             NavigationManager.NavigateTo("/admin/entries");
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
             _error = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Vehicle update failed for vehicle {VehicleId}", Id);
+            _error = "Something went wrong while saving this vehicle. Please try again or contact an admin.";
         }
         finally
         {

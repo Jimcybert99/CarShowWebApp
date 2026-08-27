@@ -4,8 +4,6 @@ namespace CarShowJudging.Core.DTOs;
 
 public class VehicleUpdateDto
 {
-    public int EntryNumber { get; set; }
-
     [Required(ErrorMessage = "Owner name is required.")]
     public string OwnerName { get; set; } = string.Empty;
 
@@ -22,4 +20,6 @@ public class VehicleUpdateDto
     public Stream? PhotoStream { get; set; }
     public string? PhotoFileName { get; set; }
     public string? RegistrationNote { get; set; }
+    public bool Paid { get; set; }
+    public int? RowNumber { get; set; }
 }

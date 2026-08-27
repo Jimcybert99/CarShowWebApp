@@ -2,11 +2,8 @@
 @attribute [Authorize(Roles = "Admin,SuperUser,Judge")]
 @inject IScoreService ScoreService
 @inject IClassService ClassService
-@inject IVehicleService VehicleService
-@inject AuthenticationStateProvider AuthStateProvider
 @inject IJSRuntime JS
-@using Microsoft.AspNetCore.Identity
-@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthStateProvider
 
 <PageTitle>Scoring Leaderboard</PageTitle>
 
@@ -71,7 +68,7 @@ else
                 </tr>
             </thead>
             <tbody>
-                <Virtualize Items="_rows" Context="row">
+                <Virtualize Items="PagedRows" Context="row">
                     <tr class="entry-row" @onclick="() => ToggleExpand(row.VehicleId)">
                         <td class="fw-bold text-center">@row.EntryNumber</td>
                         <td>
@@ -99,10 +96,15 @@ else
                             @FormatScore(row.OverallScore)
                         </td>
                         <td>
-                            <button class="btn btn-danger btn-sm" @onclick:stopPropagation="true"
-                                    @onclick="() => AskDelete(row)">
-                                <i class="bi bi-trash"></i>
-                            </button>
+                            @if (_userRole is "Admin" or "SuperUser")
+                            {
+                                <button class="btn btn-danger btn-sm" @onclick:stopPropagation="true"
+                                        disabled="@(row.JudgeScores.Count == 0)"
+                                        title="@(row.JudgeScores.Count == 0 ? "No scores to delete" : "Delete score(s)")"
+                                        @onclick="() => AskDelete(row)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            }
                         </td>
                     </tr>
                     @if (_expandedIds.Contains(row.VehicleId))
@@ -154,12 +156,50 @@ else
             </tbody>
         </table>
     </div>
+    <Pagination TotalItems="_rows.Count" @bind-PageSize="_pageSize" @bind-PageNumber="_pageNumber" />
 }
 
 <ConfirmDialog @ref="_dialog"
-               Title="Delete Entry"
-               Message="@($"Delete entry #{_deleteTarget?.EntryNumber} ({_deleteTarget?.Year} {_deleteTarget?.Make} {_deleteTarget?.Model})?")"
-               OnConfirmed="DoDeleteAsync" />
+               Title="Delete Score"
+               Message="@($"Delete {_deleteTarget?.JudgeScores.FirstOrDefault()?.JudgeName}'s score for entry #{_deleteTarget?.EntryNumber} ({_deleteTarget?.Year} {_deleteTarget?.Make} {_deleteTarget?.Model})?")"
+               OnConfirmed="DoDeleteSingleAsync" />
+
+@if (_selectVisible && _deleteTarget is not null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Delete Scores</h5>
+                </div>
+                <div class="modal-body">
+                    <p>
+                        Entry #@_deleteTarget.EntryNumber (@_deleteTarget.Year @_deleteTarget.Make @_deleteTarget.Model)
+                        has multiple scores. Select which one(s) to delete:
+                    </p>
+                    @foreach (var js in _deleteTarget.JudgeScores)
+                    {
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="@($"score_{js.Id}")"
+                                   checked="@_selectedScoreIds.Contains(js.Id)"
+                                   @onchange="e => ToggleScoreSelection(js.Id, (bool)e.Value!)" />
+                            <label class="form-check-label" for="@($"score_{js.Id}")">
+                                @js.JudgeName — Overall @js.Overall.ToString("F1") (@js.ScoredAt.LocalDateTime.ToString("g"))
+                            </label>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _selectVisible = false">Cancel</button>
+                    <button class="btn btn-danger" disabled="@(_selectedScoreIds.Count == 0)"
+                            @onclick="DoDeleteSelectedAsync">
+                        Delete Selected
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     private List<ScoringRowDto>? _rows;
@@ -167,16 +207,24 @@ else
     private HashSet<int> _expandedIds = new();
     private ConfirmDialog _dialog = default!;
     private ScoringRowDto? _deleteTarget;
+    private bool _selectVisible;
+    private HashSet<int> _selectedScoreIds = new();
     private int? _selectedClassId;
     private string? _sortBy;
-    private string? _userId;
     private string _userRole = "Judge";
+    private int? _pageSize = 25;
+    private int _pageNumber = 1;
+
+    // _rows is already sorted/filtered server-side by GetScoringRowsAsync — paging just slices
+    // that already-correct order, it never re-sorts only what's on screen.
+    private List<ScoringRowDto> PagedRows =>
+        (_pageSize.HasValue
+            ? (_rows ?? []).Skip((_pageNumber - 1) * _pageSize.Value).Take(_pageSize.Value)
+            : (_rows ?? [])).ToList();
 
     protected override async Task OnInitializedAsync()
     {
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
-        var user = await UserManager.GetUserAsync(auth.User);
-        _userId = user?.Id;
         _userRole = auth.User.IsInRole("Admin") ? "Admin"
             : auth.User.IsInRole("SuperUser") ? "SuperUser"
             : "Judge";
@@ -190,12 +238,14 @@ else
     private async Task OnClassChanged(ChangeEventArgs e)
     {
         _selectedClassId = string.IsNullOrEmpty(e.Value?.ToString()) ? null : int.Parse(e.Value.ToString()!);
+        _pageNumber = 1;
         await LoadAsync();
     }
 
     private async Task OnSortChanged(ChangeEventArgs e)
     {
         _sortBy = string.IsNullOrEmpty(e.Value?.ToString()) ? null : e.Value.ToString();
+        _pageNumber = 1;
         await LoadAsync();
     }
 
@@ -207,14 +257,40 @@ else
 
     private void AskDelete(ScoringRowDto row)
     {
+        if (row.JudgeScores.Count == 0) return;
+
         _deleteTarget = row;
-        _dialog.Show();
+        if (row.JudgeScores.Count == 1)
+        {
+            _dialog.Show();
+        }
+        else
+        {
+            _selectedScoreIds.Clear();
+            _selectVisible = true;
+        }
     }
 
-    private async Task DoDeleteAsync()
+    private void ToggleScoreSelection(int scoreId, bool selected)
     {
-        if (_deleteTarget is null || _userId is null) return;
-        await VehicleService.DeleteAsync(_deleteTarget.VehicleId, _userId, _userRole);
+        if (selected) _selectedScoreIds.Add(scoreId);
+        else _selectedScoreIds.Remove(scoreId);
+    }
+
+    private async Task DoDeleteSingleAsync()
+    {
+        var scoreId = _deleteTarget?.JudgeScores.FirstOrDefault()?.Id;
+        if (scoreId is null) return;
+        await ScoreService.DeleteScoresAsync(new[] { scoreId.Value }, _userRole);
+        await LoadAsync();
+    }
+
+    private async Task DoDeleteSelectedAsync()
+    {
+        if (_selectedScoreIds.Count == 0) return;
+        await ScoreService.DeleteScoresAsync(_selectedScoreIds, _userRole);
+        _selectVisible = false;
+        _selectedScoreIds.Clear();
         await LoadAsync();
     }
 

@@ -12,6 +12,10 @@
 {
     <p>Loading…</p>
 }
+else if (_vehicles.Count == 0)
+{
+    <p class="text-muted">No entries registered yet.</p>
+}
 else
 {
     <div class="table-responsive">
@@ -19,24 +23,37 @@ else
             <thead class="table-dark">
                 <tr>
                     <th>#</th>
+                    <th>Row #</th>
                     <th>Vehicle</th>
                     <th>Owner</th>
                     <th class="d-none d-md-table-cell">Classes</th>
+                    <th>Paid</th>
                     <th>Judges Scored</th>
                     <th></th>
                 </tr>
             </thead>
             <tbody>
-                @foreach (var v in _vehicles)
+                @foreach (var v in PagedVehicles)
                 {
                     <tr>
                         <td class="fw-bold">@v.EntryNumber</td>
+                        <td>@(v.RowNumber?.ToString() ?? "—")</td>
                         <td>@v.Year @v.Make @v.Model</td>
                         <td>@v.OwnerName</td>
                         <td class="d-none d-md-table-cell">
                             @foreach (var c in v.Classes)
                             {
                                 <span class="badge bg-secondary me-1">@c.Name</span>
+                            }
+                        </td>
+                        <td>
+                            @if (v.Paid)
+                            {
+                                <span class="badge bg-success">Paid</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">Unpaid</span>
                             }
                         </td>
                         <td>
@@ -49,7 +66,7 @@ else
                                 @foreach (var s in v.Scores)
                                 {
                                     <span class="badge bg-success me-1">
-                                        @(s.Judge?.DisplayName ?? s.Judge?.UserName ?? "Judge")
+                                        @(s.Judge?.UserName ?? "Judge")
                                     </span>
                                 }
                             }
@@ -60,22 +77,25 @@ else
                                 <a class="btn btn-primary btn-sm me-1" href="@($"/admin/vehicles/{v.Id}/edit")">
                                     <i class="bi bi-pencil"></i>
                                 </a>
-                                <button class="btn btn-sm me-1 @(string.IsNullOrWhiteSpace(v.RegistrationNote) ? "btn-outline-secondary" : "btn-info")"
-                                        disabled="@string.IsNullOrWhiteSpace(v.RegistrationNote)"
-                                        title="@(string.IsNullOrWhiteSpace(v.RegistrationNote) ? "No note" : "View note")"
-                                        @onclick="() => ShowNote(v)">
-                                    <i class="bi bi-journal-text"></i>
+                            }
+                            <button class="btn btn-sm me-1 @(string.IsNullOrWhiteSpace(v.RegistrationNote) ? "btn-outline-secondary" : "btn-info")"
+                                    title="@(string.IsNullOrWhiteSpace(v.RegistrationNote) ? "Add note" : "Edit note")"
+                                    @onclick="() => ShowNote(v)">
+                                <i class="bi bi-journal-text"></i>
+                            </button>
+                            @if (_userRole is "Admin" or "SuperUser")
+                            {
+                                <button class="btn btn-danger btn-sm" @onclick="() => AskDelete(v)">
+                                    <i class="bi bi-trash"></i>
                                 </button>
                             }
-                            <button class="btn btn-danger btn-sm" @onclick="() => AskDelete(v)">
-                                <i class="bi bi-trash"></i>
-                            </button>
                         </td>
                     </tr>
                 }
             </tbody>
         </table>
     </div>
+    <Pagination TotalItems="_vehicles.Count" @bind-PageSize="_pageSize" @bind-PageNumber="_pageNumber" />
 }
 
 <ConfirmDialog @ref="_dialog"
@@ -83,7 +103,7 @@ else
                Message="@($"Delete entry #{_deleteTarget?.EntryNumber} ({_deleteTarget?.Year} {_deleteTarget?.Make} {_deleteTarget?.Model})?")"
                OnConfirmed="DoDeleteAsync" />
 
-<NoteModal @ref="_noteModal" />
+<NoteModal @ref="_noteModal" OnSaved="StateHasChanged" />
 
 @code {
     private List<Vehicle>? _vehicles;
@@ -92,6 +112,13 @@ else
     private Vehicle? _deleteTarget;
     private string? _userId;
     private string _userRole = "Judge";
+    private int? _pageSize = 25;
+    private int _pageNumber = 1;
+
+    private IEnumerable<Vehicle> PagedVehicles =>
+        _pageSize.HasValue
+            ? (_vehicles ?? []).Skip((_pageNumber - 1) * _pageSize.Value).Take(_pageSize.Value)
+            : (_vehicles ?? []);
 
     protected override async Task OnInitializedAsync()
     {

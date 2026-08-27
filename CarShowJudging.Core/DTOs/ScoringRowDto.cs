@@ -24,6 +24,7 @@ public class ScoringRowDto
 
 public class JudgeScoreDto
 {
+    public int Id { get; set; }
     public string JudgeName { get; set; } = string.Empty;
     public int Exterior { get; set; }
     public int Interior { get; set; }

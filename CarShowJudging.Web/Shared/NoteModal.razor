@@ -1,3 +1,6 @@
+@inject IVehicleService VehicleService
+@inject ILogger<NoteModal> Logger
+
 @if (_visible && _vehicle is not null)
 {
     <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
@@ -9,10 +12,19 @@
                     </h5>
                 </div>
                 <div class="modal-body">
-                    <p style="white-space:pre-wrap">@_vehicle.RegistrationNote</p>
+                    @if (_error is not null)
+                    {
+                        <div class="alert alert-danger">@_error</div>
+                    }
+                    <textarea class="form-control" rows="4" maxlength="1000"
+                              placeholder="Condition notes, special details, observations…"
+                              @bind="_noteText" @bind:event="oninput"></textarea>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" @onclick="Close">Close</button>
+                    <button class="btn btn-secondary" @onclick="Close" disabled="@_saving">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                        @(_saving ? "Saving…" : "Save")
+                    </button>
                 </div>
             </div>
         </div>
@@ -20,15 +32,56 @@
 }
 
 @code {
+    [Parameter] public EventCallback OnSaved { get; set; }
+
     private bool _visible;
+    private bool _saving;
+    private string? _error;
+    private string? _noteText;
     private Vehicle? _vehicle;
 
     public void Show(Vehicle vehicle)
     {
         _vehicle = vehicle;
+        _noteText = vehicle.RegistrationNote;
+        _error = null;
+        _saving = false;
         _visible = true;
         StateHasChanged();
     }
 
     private void Close() => _visible = false;
+
+    private async Task SaveAsync()
+    {
+        // Capture into locals: if the modal gets reopened for a different vehicle while this
+        // save is still in flight (an await below), _vehicle/_noteText will have moved on to
+        // that other vehicle by the time we resume — mutate/close based on what THIS save was
+        // actually for, and only touch shared state if we're still showing the same vehicle.
+        var vehicle = _vehicle;
+        var noteText = _noteText;
+        if (vehicle is null) return;
+
+        _saving = true;
+        _error = null;
+        try
+        {
+            await VehicleService.UpdateNoteAsync(vehicle.Id, noteText);
+            vehicle.RegistrationNote = string.IsNullOrWhiteSpace(noteText) ? null : noteText.Trim();
+            if (ReferenceEquals(_vehicle, vehicle))
+                _visible = false;
+            await OnSaved.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Note update failed for vehicle {VehicleId}", vehicle.Id);
+            if (ReferenceEquals(_vehicle, vehicle))
+                _error = "Something went wrong while saving this note. Please try again.";
+        }
+        finally
+        {
+            if (ReferenceEquals(_vehicle, vehicle))
+                _saving = false;
+        }
+    }
 }

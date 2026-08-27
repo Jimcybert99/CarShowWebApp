@@ -7,6 +7,7 @@ public interface IVehicleService
 {
     Task<Vehicle> RegisterAsync(VehicleRegistrationDto dto, string registeredById);
     Task UpdateAsync(int vehicleId, VehicleUpdateDto dto);
+    Task UpdateNoteAsync(int vehicleId, string? note);
     Task<List<Vehicle>> GetAllAsync();
     Task<List<Vehicle>> GetByOwnerAsync(string ownerId);
     Task<Vehicle?> GetByIdAsync(int id);

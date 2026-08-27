@@ -1,8 +1,10 @@
 @page "/vehicles/register"
 @attribute [Authorize]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inject IVehicleService VehicleService
 @inject IClassService ClassService
 @inject AuthenticationStateProvider AuthStateProvider
+@inject ILogger<Register> Logger
 @using Microsoft.AspNetCore.Identity
 @using System.Text
 @inject UserManager<ApplicationUser> UserManager
@@ -23,7 +25,7 @@
 <div class="col-md-7">
 <div class="card">
     <div class="card-body">
-        <EditForm Model="_dto" OnValidSubmit="SubmitAsync">
+        <EditForm Model="_dto" FormName="RegisterVehicle" OnValidSubmit="SubmitAsync">
             <DataAnnotationsValidator />
             <ValidationSummary class="text-danger" />
 
@@ -72,18 +74,34 @@
                 </div>
             }
 
-            <div class="mb-3">
-                <label class="form-label">Vehicle Photo <span class="text-muted small">(optional)</span></label>
-                <div class="d-flex gap-2">
-                    <label class="btn btn-outline-secondary btn-sm mb-0" for="photoCameraInput">
-                        <i class="bi bi-camera me-1"></i>Take Photo
-                    </label>
-                    <InputFile id="photoCameraInput" class="d-none" OnChange="OnPhotoSelected" accept="image/*" capture="environment" />
+            <div class="row g-3 mb-3">
+                <div class="col-12 col-sm-6">
+                    <label class="form-label">Vehicle Photo <span class="text-muted small">(optional)</span></label>
+                    <div class="d-flex gap-2">
+                        <label class="btn btn-outline-secondary btn-sm mb-0" for="photoCameraInput">
+                            <i class="bi bi-camera me-1"></i>Take Photo
+                        </label>
+                        <InputFile id="photoCameraInput" class="d-none" OnChange="OnPhotoSelected" accept="image/*" capture="environment" />
 
-                    <label class="btn btn-outline-secondary btn-sm mb-0" for="photoGalleryInput">
-                        <i class="bi bi-images me-1"></i>Choose Photo
-                    </label>
-                    <InputFile id="photoGalleryInput" class="d-none" OnChange="OnPhotoSelected" accept="image/*" />
+                        <label class="btn btn-outline-secondary btn-sm mb-0" for="photoGalleryInput">
+                            <i class="bi bi-images me-1"></i>Choose Photo
+                        </label>
+                        <InputFile id="photoGalleryInput" class="d-none" OnChange="OnPhotoSelected" accept="image/*" />
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6">
+                    <label class="form-label">Row Number <span class="text-muted small">(optional)</span></label>
+                    <select class="form-select mb-2" @bind="_dto.RowNumber">
+                        <option value="">— Unassigned —</option>
+                        @for (var n = 1; n <= 50; n++)
+                        {
+                            <option value="@n">@n</option>
+                        }
+                    </select>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="paidCheck" @bind="_dto.Paid" />
+                        <label class="form-check-label" for="paidCheck">Paid</label>
+                    </div>
                 </div>
             </div>
 
@@ -113,7 +131,9 @@
 </div>
 </div>
 
-@* CSV bulk import *@
+@if (_isStaff)
+{
+@* CSV bulk import — staff-only (Admin/SuperUser/Judge), not offered to self-registering participants *@
 <div class="card mt-4" style="max-width:560px">
     <div class="card-header">Bulk Import via CSV</div>
     <div class="card-body">
@@ -121,6 +141,7 @@
             CSV columns (with header row):
             <code>Owner Name, Year, Make, Model, Class, Notes</code><br />
             Class and Notes are optional. Class is matched by name (case-insensitive).
+            Limited to @MaxCsvRows rows per import.
         </p>
         <div class="d-flex gap-2 align-items-center">
             <InputFile class="form-control form-control-sm" OnChange="OnCsvSelected" accept=".csv" />
@@ -148,8 +169,11 @@
         }
     </div>
 </div>
+}
 
 @code {
+    private const int MaxCsvRows = 200;
+
     private record CsvResult(bool Success, string Message);
 
     private VehicleRegistrationDto _dto = new();
@@ -163,6 +187,7 @@
     private int _newEntryNumber;
     private string? _error;
     private string _userId = string.Empty;
+    private bool _isStaff;
 
     private IBrowserFile? _csvFile;
     private bool _csvProcessing;
@@ -172,6 +197,7 @@
     {
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
         _userId = UserManager.GetUserId(auth.User) ?? string.Empty;
+        _isStaff = auth.User.IsInRole("Admin") || auth.User.IsInRole("SuperUser") || auth.User.IsInRole("Judge");
         _classes = await ClassService.GetAllAsync();
         _dto.Year = DateTime.UtcNow.Year;
         await LoadAvailableNumbersAsync();
@@ -236,9 +262,14 @@
             _photoPreviewUrl = null;
             await LoadAvailableNumbersAsync();
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
             _error = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Vehicle registration failed for user {UserId}", _userId);
+            _error = "Something went wrong while registering this vehicle. Please try again or contact an admin.";
         }
         finally
         {
@@ -248,7 +279,9 @@
 
     private async Task ProcessCsvAsync()
     {
-        if (_csvFile is null || string.IsNullOrEmpty(_userId)) return;
+        // Defense-in-depth: the card is already hidden from non-staff in the markup above, but
+        // re-check here too since this handler is reachable directly over the circuit.
+        if (!_isStaff || _csvFile is null || string.IsNullOrEmpty(_userId)) return;
         _csvProcessing = true;
         _csvResults = new();
 
@@ -258,8 +291,11 @@
                 _csvFile.OpenReadStream(maxAllowedSize: 2 * 1024 * 1024));
             var content = await reader.ReadToEndAsync();
             var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            var dataRowCount = Math.Max(0, lines.Length - 1); // exclude header
+            if (dataRowCount > MaxCsvRows)
+                _csvResults.Add(new(false, $"File has {dataRowCount} rows — only the first {MaxCsvRows} will be imported."));
 
-            for (var i = 1; i < lines.Length; i++) // skip header row
+            for (var i = 1; i < lines.Length && i <= MaxCsvRows; i++) // skip header row
             {
                 var line = lines[i].Trim('\r', ' ');
                 if (string.IsNullOrEmpty(line)) continue;

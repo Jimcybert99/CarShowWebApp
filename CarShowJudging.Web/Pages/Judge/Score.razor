@@ -4,6 +4,7 @@
 @inject IScoreService ScoreService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Nav
+@inject ILogger<CarShowJudging.Web.Pages.Judge.Score> Logger
 @using Microsoft.AspNetCore.Identity
 @inject UserManager<ApplicationUser> UserManager
 
@@ -105,7 +106,8 @@ else
         }
         catch (Exception ex)
         {
-            _error = ex.Message;
+            Logger.LogError(ex, "Score submission failed for vehicle {VehicleId}, judge {JudgeId}", VehicleId, _judgeId);
+            _error = "Something went wrong while submitting this score. Please try again or contact an admin.";
         }
         finally
         {

@@ -37,7 +37,7 @@ else
                 </tr>
             </thead>
             <tbody>
-                @foreach (var v in _vehicles)
+                @foreach (var v in PagedVehicles)
                 {
                     <tr>
                         <td class="fw-bold">@v.EntryNumber</td>
@@ -58,6 +58,11 @@ else
                             }
                         </td>
                         <td>
+                            <button class="btn btn-sm me-1 @(string.IsNullOrWhiteSpace(v.RegistrationNote) ? "btn-outline-secondary" : "btn-info")"
+                                    title="@(string.IsNullOrWhiteSpace(v.RegistrationNote) ? "Add note" : "Edit note")"
+                                    @onclick="() => ShowNote(v)">
+                                <i class="bi bi-journal-text"></i>
+                            </button>
                             <button class="btn btn-danger btn-sm" @onclick="() => AskDelete(v)">
                                 <i class="bi bi-trash"></i>
                             </button>
@@ -67,6 +72,7 @@ else
             </tbody>
         </table>
     </div>
+    <Pagination TotalItems="_vehicles.Count" @bind-PageSize="_pageSize" @bind-PageNumber="_pageNumber" />
 }
 
 <ConfirmDialog @ref="_dialog"
@@ -74,11 +80,21 @@ else
                Message="@($"Delete entry #{_deleteTarget?.EntryNumber} ({_deleteTarget?.Year} {_deleteTarget?.Make} {_deleteTarget?.Model})? This cannot be undone.")"
                OnConfirmed="DoDeleteAsync" />
 
+<NoteModal @ref="_noteModal" OnSaved="StateHasChanged" />
+
 @code {
     private List<Vehicle>? _vehicles;
     private ConfirmDialog _dialog = default!;
+    private NoteModal _noteModal = default!;
     private Vehicle? _deleteTarget;
     private string? _userId;
+    private int? _pageSize = 25;
+    private int _pageNumber = 1;
+
+    private IEnumerable<Vehicle> PagedVehicles =>
+        _pageSize.HasValue
+            ? (_vehicles ?? []).Skip((_pageNumber - 1) * _pageSize.Value).Take(_pageSize.Value)
+            : (_vehicles ?? []);
 
     protected override async Task OnInitializedAsync()
     {
@@ -99,6 +115,8 @@ else
         _deleteTarget = v;
         _dialog.Show();
     }
+
+    private void ShowNote(Vehicle v) => _noteModal.Show(v);
 
     private async Task DoDeleteAsync()
     {

@@ -1,6 +1,7 @@
 @page "/admin/classes"
 @attribute [Authorize(Roles = "Admin,SuperUser")]
 @inject IClassService ClassService
+@inject ILogger<Classes> Logger
 
 <PageTitle>Manage Classes</PageTitle>
 <h2>Vehicle Classes</h2>
@@ -81,7 +82,8 @@
         }
         catch (Exception ex)
         {
-            _error = ex.Message;
+            Logger.LogError(ex, "Adding vehicle class {ClassName} failed", _newName);
+            _error = "Something went wrong while adding this class. Please try again or contact an admin.";
         }
     }
 

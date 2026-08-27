@@ -72,11 +72,27 @@ public class ScoreService : IScoreService
     public Task<Score?> GetByVehicleAndJudgeAsync(int vehicleId, string judgeId) =>
         _db.Scores.FirstOrDefaultAsync(s => s.VehicleId == vehicleId && s.JudgeId == judgeId);
 
+    public async Task<HashSet<int>> GetScoredVehicleIdsForJudgeAsync(string judgeId) =>
+        (await _db.Scores.Where(s => s.JudgeId == judgeId).Select(s => s.VehicleId).ToListAsync()).ToHashSet();
+
     public Task<List<Score>> GetScoresForVehicleAsync(int vehicleId) =>
         _db.Scores
             .Include(s => s.Judge)
             .Where(s => s.VehicleId == vehicleId)
             .ToListAsync();
+
+    public async Task DeleteScoresAsync(IEnumerable<int> scoreIds, string requestingUserRole)
+    {
+        if (requestingUserRole is not ("Admin" or "SuperUser"))
+            throw new UnauthorizedAccessException("Only an Admin or SuperUser can delete scores.");
+
+        var ids = scoreIds.ToList();
+        if (ids.Count == 0) return;
+
+        var scores = await _db.Scores.Where(s => ids.Contains(s.Id)).ToListAsync();
+        _db.Scores.RemoveRange(scores);
+        await _db.SaveChangesAsync();
+    }
 
     public async Task<List<ScoringRowDto>> GetScoringRowsAsync(int? classId, string? sortBy)
     {
@@ -103,10 +119,11 @@ public class ScoreService : IScoreService
                 Year = v.Year,
                 PhotoUrl = v.PhotoUrl,
                 ClassNames = v.Classes.Select(c => c.Name).ToList(),
-                ScoredByJudgeNames = scores.Select(s => s.Judge?.DisplayName ?? s.Judge?.UserName ?? "Judge").ToList(),
+                ScoredByJudgeNames = scores.Select(s => s.Judge?.UserName ?? "Judge").ToList(),
                 JudgeScores = scores.Select(s => new JudgeScoreDto
                 {
-                    JudgeName = s.Judge?.DisplayName ?? s.Judge?.UserName ?? "Judge",
+                    Id = s.Id,
+                    JudgeName = s.Judge?.UserName ?? "Judge",
                     Exterior = s.Exterior,
                     Interior = s.Interior,
                     EngineBay = s.EngineBay,

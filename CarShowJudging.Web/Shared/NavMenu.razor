@@ -28,17 +28,17 @@
                         <li class="nav-item">
                             <NavLink class="nav-link" href="judge/entries">Entries to Judge</NavLink>
                         </li>
-                    </Authorized>
-                </AuthorizeView>
-
-                <AuthorizeView Roles="Admin,SuperUser">
-                    <Authorized>
                         <li class="nav-item">
                             <NavLink class="nav-link" href="admin/entries">All Entries</NavLink>
                         </li>
                         <li class="nav-item">
                             <NavLink class="nav-link" href="admin/scores">Scores</NavLink>
                         </li>
+                    </Authorized>
+                </AuthorizeView>
+
+                <AuthorizeView Roles="Admin,SuperUser">
+                    <Authorized>
                         <li class="nav-item">
                             <NavLink class="nav-link" href="admin/classes">Classes</NavLink>
                         </li>

@@ -28,8 +28,6 @@ public class ForgotPasswordModel : PageModel
     public InputModel Input { get; set; } = new();
 
     public bool EmailSent { get; set; }
-    public string? ResetUrl { get; set; }   // shown on-screen when SMTP is not configured
-    public string? ErrorMessage { get; set; }
 
     public class InputModel
     {
@@ -51,13 +49,12 @@ public class ForgotPasswordModel : PageModel
         var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
         var resetUrl = $"{Request.Scheme}://{Request.Host}/reset-password?userId={user.Id}&token={encodedToken}";
 
-        var smtpConfigured = !string.IsNullOrEmpty(_config["Smtp:Host"]);
         var hasRealEmail = !string.IsNullOrEmpty(user.Email) && !user.Email.EndsWith("@carshow.local");
 
-        if (smtpConfigured && hasRealEmail)
+        if (hasRealEmail)
         {
             var body = $"""
-                <p>Hello {user.DisplayName},</p>
+                <p>Hello {user.UserName},</p>
                 <p>Click the link below to reset your Car Show Judging password.</p>
                 <p><a href="{resetUrl}">Reset my password</a></p>
                 <p>If you did not request this, you can ignore this email.</p>
@@ -65,23 +62,29 @@ public class ForgotPasswordModel : PageModel
 
             try
             {
+                // EmailService itself logs the link server-side when SMTP isn't configured,
+                // so this covers both the "SMTP missing" and "SMTP misconfigured" cases without
+                // ever putting the reset token in the HTTP response.
                 await _email.SendAsync(user.Email!, "Car Show Judging — Password Reset", body);
-                EmailSent = true;
             }
             catch (Exception ex)
             {
-                // SMTP configured but broken (e.g. missing credentials) — degrade to the same
-                // on-screen fallback used when SMTP isn't configured at all, instead of a 500.
                 _logger.LogWarning(ex, "Password reset email failed to send to {Email}", user.Email);
-                ResetUrl = resetUrl;
             }
         }
         else
         {
-            // No SMTP or no real email — surface the link on screen for the admin to relay
-            ResetUrl = resetUrl;
+            // No deliverable email on file (e.g. the seeded admin account) — the reset token
+            // must never be exposed to an unauthenticated caller. Log it server-side only, so
+            // an admin with server/log access can relay it out-of-band.
+            _logger.LogWarning(
+                "Password reset requested for {UserName}, who has no deliverable email on file. " +
+                "Reset URL (relay manually): {ResetUrl}", user.UserName, resetUrl);
         }
 
+        // Always the same response regardless of what happened above, so the page never reveals
+        // account existence, email configuration, or SMTP delivery state to the caller.
+        EmailSent = true;
         return Page();
     }
 }

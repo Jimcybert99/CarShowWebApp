@@ -138,7 +138,6 @@ static async Task SeedAsync(WebApplication app)
         {
             UserName = "admin",
             Email = "admin@carshow.local",
-            DisplayName = "Administrator",
             EmailConfirmed = true
         };
         var result = await userManager.CreateAsync(admin, adminPassword);
